@@ -1,114 +1,98 @@
 # CrowdSec for Mailcow
 
-Drop-in replacement for Mailcow's built-in fail2ban using [CrowdSec](https://crowdsec.net/).
+> **Drop-in replacement for Mailcow's built-in fail2ban** — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
-CrowdSec monitors all Mailcow services (Postfix, Dovecot, Nginx, Rspamd, SOGo) and blocks attackers via iptables. It also benefits from the CrowdSec community threat intelligence feed.
+CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, spam relaying attempts, and other abuse patterns, and blocks offending IPs via iptables. Unlike fail2ban, CrowdSec additionally benefits from a shared community blocklist with millions of known malicious IPs, blocking threats before they even attempt to attack your server.
 
-## What's included
+---
 
-- **CrowdSec** — log processor + LAPI + community blocklist
-- **Firewall Bouncer** — blocks IPs via iptables/nftables
-- **acquis.yaml** — log acquisition for all Mailcow containers + SSH
+## How it works
 
-Collections installed automatically:
-- `crowdsecurity/nginx` — webmail/admin brute-force
-- `crowdsecurity/postfix` — SMTP abuse
-- `crowdsecurity/dovecot` — IMAP/POP3 brute-force
-- `crowdsecurity/sshd` — SSH brute-force
-- `crowdsecurity/base-http-scenarios` — generic HTTP attacks
+```
+Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
+         │  logs via Docker socket
+         ▼
+  ┌─────────────────┐        ┌──────────────────────────┐
+  │   CrowdSec      │◄──────►│  CrowdSec Central API    │
+  │  Log Processor  │        │  (community blocklist)   │
+  │  + LAPI         │        └──────────────────────────┘
+  └────────┬────────┘
+           │  ban decisions
+           ▼
+  ┌─────────────────┐
+  │  Firewall       │
+  │  Bouncer        │──► iptables DROP
+  └─────────────────┘
+```
 
-## Prerequisites
+- **Log Processor** reads Docker container logs from all Mailcow services and SSH auth logs
+- **LAPI (Local API)** manages decisions and exposes them to bouncers
+- **Firewall Bouncer** translates ban decisions into iptables rules, blocking IPs at kernel level
+- **Community Blocklist** automatically pulls known-bad IPs from the CrowdSec network (no account required for basic use)
 
-- Mailcow running via Docker Compose (default network: `mailcowdockerized_mailcow-network`)
-- Docker + Docker Compose v2
+---
 
-## Setup
+## Features
 
-**1. Clone and configure**
+- ✅ Monitors all Mailcow services: Postfix, Dovecot, Nginx, Rspamd, SOGo
+- ✅ SSH brute-force protection
+- ✅ Community threat intelligence (shared blocklist with millions of IPs)
+- ✅ Blocks at iptables level — offending traffic never reaches your services
+- ✅ No credentials or account required for basic use
+- ✅ Optional: enroll with [app.crowdsec.net](https://app.crowdsec.net) for a management dashboard
+- ✅ Replaces fail2ban with zero changes to Mailcow itself
+
+---
+
+## Quick Start
 
 ```bash
 git clone https://github.com/PhilGabriel/mailcow_crowdsec.git
 cd mailcow_crowdsec
 cp .env.example .env
-```
 
-**2. Start CrowdSec (first boot — no bouncer key yet)**
-
-```bash
+# Step 1: Start CrowdSec
 docker compose up -d crowdsec
-```
 
-**3. Generate the bouncer API key**
-
-```bash
+# Step 2: Generate API key for the bouncer
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
-```
+# → Copy the key into .env as CROWDSEC_FIREWALL_BOUNCER_KEY
 
-Copy the key into your `.env`:
-
-```
-CROWDSEC_FIREWALL_BOUNCER_KEY=<paste key here>
-```
-
-**4. Start the firewall bouncer**
-
-```bash
+# Step 3: Start the firewall bouncer
 docker compose up -d crowdsec-firewall-bouncer
 ```
 
-**5. Verify**
+→ See [INSTALL.md](INSTALL.md) for the full step-by-step guide.  
+→ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
 
-```bash
-# Check running containers
-docker compose ps
+---
 
-# Show active bans
-docker exec crowdsec-mailcow cscli decisions list
-
-# Show recent alerts
-docker exec crowdsec-mailcow cscli alerts list
-
-# Check metrics
-docker exec crowdsec-mailcow cscli metrics
-```
-
-## Optional: Enroll with CrowdSec Central API
-
-Register at [app.crowdsec.net](https://app.crowdsec.net), create an instance, and add your enrollment key to `.env`:
+## Repository structure
 
 ```
-CROWDSEC_ENROLL_KEY=your_key_here
-CROWDSEC_INSTANCE_NAME=my-mailcow
+mailcow_crowdsec/
+├── docker-compose.yml      # CrowdSec + Firewall Bouncer
+├── acquis.yaml             # Log sources (all Mailcow services + SSH)
+├── .env.example            # Required environment variables
+├── README.md               # This file
+├── INSTALL.md              # Full installation guide
+└── TROUBLESHOOTING.md      # Common problems and solutions
 ```
 
-Then enroll:
+---
 
-```bash
-docker exec crowdsec-mailcow cscli console enroll ${CROWDSEC_ENROLL_KEY}
-docker compose restart crowdsec
-```
+## Requirements
 
-## Mailcow: Disable built-in fail2ban
+| Requirement | Details |
+|-------------|---------|
+| OS | Debian/Ubuntu (iptables available) |
+| Docker | 20.10+ |
+| Docker Compose | v2 (plugin, not standalone) |
+| Mailcow | Running via the official `docker-compose.yml` |
+| Mailcow network | `mailcowdockerized_mailcow-network` (default name) |
 
-If Mailcow's own fail2ban is active, disable it to avoid conflicts:
+---
 
-```bash
-# In mailcow.conf
-SKIP_FAIL2BAN=y
+## License
 
-# Then restart
-cd /opt/mailcow-dockerized && docker compose down && docker compose up -d
-```
-
-## Troubleshooting
-
-```bash
-# View CrowdSec logs
-docker logs crowdsec-mailcow -f
-
-# Check which log sources are being read
-docker exec crowdsec-mailcow cscli metrics show acquisition
-
-# Update hub (parsers, scenarios)
-docker exec crowdsec-mailcow cscli hub update && cscli hub upgrade
-```
+MIT
