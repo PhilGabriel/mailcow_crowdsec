@@ -143,6 +143,12 @@ mailcow_crowdsec/
 
 ---
 
+## Documentation
+
+📖 **[Full documentation in the Wiki](https://github.com/PhilGabriel/mailcow_crowdsec/wiki)** — Installation, Configuration, Troubleshooting, Architecture, and more.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
