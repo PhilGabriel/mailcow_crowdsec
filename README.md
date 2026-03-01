@@ -1,5 +1,11 @@
 # CrowdSec for Mailcow
 
+> ⚠️ **ALPHA — EXPERIMENTAL SOFTWARE**
+>
+> This project is in early development. It has been tested in a specific production environment but is **not yet considered stable for general use**. Configuration, file structure, and behaviour may change between versions without notice. Use at your own risk — always test in a non-production environment first and keep backups of your Mailcow data.
+
+---
+
 > **Drop-in replacement for Mailcow's built-in fail2ban** — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
 CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, spam relaying attempts, and other abuse patterns, and blocks offending IPs via iptables. Unlike fail2ban, CrowdSec additionally benefits from a shared community blocklist with millions of known malicious IPs, blocking threats before they even attempt to attack your server.
@@ -95,4 +101,4 @@ mailcow_crowdsec/
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE)
