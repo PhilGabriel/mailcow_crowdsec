@@ -1,6 +1,6 @@
 services:
   crowdsec:
-    image: crowdsecurity/crowdsec:latest
+    image: crowdsecurity/crowdsec:v1.7.4
     container_name: crowdsec-mailcow
     restart: always
     environment:
@@ -10,7 +10,7 @@ services:
         crowdsecurity/dovecot
         crowdsecurity/postfix
         crowdsecurity/sshd
-      # To enroll with CrowdSec Central API (optional):
+      # Optional: enroll with CrowdSec Central API
       # ENROLL_KEY: "${CROWDSEC_ENROLL_KEY}"
       # ENROLL_INSTANCE_NAME: "${CROWDSEC_INSTANCE_NAME}"
       TZ: "${TZ:-Europe/Berlin}"
@@ -26,28 +26,47 @@ services:
       - mailcow-network
     ports:
       - "127.0.0.1:8082:8080"
+    healthcheck:
+      test: ["CMD", "cscli", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 
   crowdsec-firewall-bouncer:
-    image: crowdsecurity/crowdsec-firewall-bouncer:latest
+    image: crowdsecurity/crowdsec-firewall-bouncer:v0.0.31
     container_name: crowdsec-firewall-bouncer
     restart: always
-    privileged: true
     network_mode: host
     environment:
       CROWDSEC_LAPI_URL: "http://127.0.0.1:8082"
       CROWDSEC_LAPI_KEY: "${CROWDSEC_FIREWALL_BOUNCER_KEY}"
       TZ: "${TZ:-Europe/Berlin}"
       IPTABLES_CHAINS: "INPUT,FORWARD"
+      # For nftables-based systems, uncomment the following:
+      # MODE: nftables
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - firewall-bouncer-config:/etc/crowdsec/bouncers/
     depends_on:
-      - crowdsec
+      crowdsec:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    cap_drop:
+      - ALL
 
 networks:
   crowdsec-net:

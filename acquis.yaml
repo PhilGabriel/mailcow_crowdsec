@@ -23,6 +23,9 @@ labels:
 
 ---
 # Rspamd (spam filter)
+# Note: No official CrowdSec parser exists for Rspamd.
+# These logs will appear as "unparsed" in metrics — this is expected.
+# Kept here for future parser support and log visibility.
 source: docker
 container_name:
   - mailcowdockerized-rspamd-mailcow-1
@@ -31,6 +34,8 @@ labels:
 
 ---
 # SOGo (groupware/webmail)
+# Note: No official CrowdSec parser exists for SOGo.
+# Same as Rspamd — kept for completeness, logs will be unparsed.
 source: docker
 container_name:
   - mailcowdockerized-sogo-mailcow-1
