@@ -1,0 +1,45 @@
+# Mailcow Nginx (webmail, admin UI)
+source: docker
+container_name:
+  - mailcowdockerized-nginx-mailcow-1
+labels:
+  type: nginx
+
+---
+# Dovecot (IMAP/POP3)
+source: docker
+container_name:
+  - mailcowdockerized-dovecot-mailcow-1
+labels:
+  type: dovecot
+
+---
+# Postfix (SMTP)
+source: docker
+container_name:
+  - mailcowdockerized-postfix-mailcow-1
+labels:
+  type: postfix
+
+---
+# Rspamd (spam filter)
+source: docker
+container_name:
+  - mailcowdockerized-rspamd-mailcow-1
+labels:
+  type: rspamd
+
+---
+# SOGo (groupware/webmail)
+source: docker
+container_name:
+  - mailcowdockerized-sogo-mailcow-1
+labels:
+  type: sogo
+
+---
+# SSH auth logs
+filenames:
+  - /var/log/auth.log
+labels:
+  type: syslog

@@ -1,0 +1,62 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec-mailcow
+    restart: always
+    environment:
+      COLLECTIONS: >
+        crowdsecurity/nginx
+        crowdsecurity/base-http-scenarios
+        crowdsecurity/dovecot
+        crowdsecurity/postfix
+        crowdsecurity/sshd
+      # To enroll with CrowdSec Central API (optional):
+      # ENROLL_KEY: "${CROWDSEC_ENROLL_KEY}"
+      # ENROLL_INSTANCE_NAME: "${CROWDSEC_INSTANCE_NAME}"
+      TZ: "${TZ:-Europe/Berlin}"
+    volumes:
+      - crowdsec-db:/var/lib/crowdsec/data/
+      - crowdsec-config:/etc/crowdsec/
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/auth.log:/var/log/auth.log:ro
+      - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+    networks:
+      - crowdsec-net
+      - mailcow-network
+    ports:
+      - "127.0.0.1:8082:8080"
+    security_opt:
+      - no-new-privileges:true
+
+  crowdsec-firewall-bouncer:
+    image: crowdsecurity/crowdsec-firewall-bouncer:latest
+    container_name: crowdsec-firewall-bouncer
+    restart: always
+    privileged: true
+    network_mode: host
+    environment:
+      CROWDSEC_LAPI_URL: "http://127.0.0.1:8082"
+      CROWDSEC_LAPI_KEY: "${CROWDSEC_FIREWALL_BOUNCER_KEY}"
+      TZ: "${TZ:-Europe/Berlin}"
+      IPTABLES_CHAINS: "INPUT,FORWARD"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - firewall-bouncer-config:/etc/crowdsec/bouncers/
+    depends_on:
+      - crowdsec
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+networks:
+  crowdsec-net:
+    driver: bridge
+  mailcow-network:
+    external: true
+    name: mailcowdockerized_mailcow-network
+
+volumes:
+  crowdsec-db:
+  crowdsec-config:
+  firewall-bouncer-config:
