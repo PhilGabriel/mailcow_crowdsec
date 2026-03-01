@@ -149,6 +149,12 @@ mailcow_crowdsec/
 
 ---
 
+## Disclaimer
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE AUTHORS ARE NOT RESPONSIBLE FOR ANY DAMAGE, DATA LOSS, SERVICE OUTAGE, OR SECURITY INCIDENTS RESULTING FROM THE USE OF THIS SOFTWARE. **You are solely responsible for testing, validating, and securing your own infrastructure.** This project is not affiliated with or endorsed by [Mailcow](https://mailcow.email/) or [CrowdSec](https://crowdsec.net/).
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
