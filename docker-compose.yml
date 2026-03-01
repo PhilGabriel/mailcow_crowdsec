@@ -4,12 +4,7 @@ services:
     container_name: crowdsec-mailcow
     restart: always
     environment:
-      COLLECTIONS: >
-        crowdsecurity/nginx
-        crowdsecurity/base-http-scenarios
-        crowdsecurity/dovecot
-        crowdsecurity/postfix
-        crowdsecurity/sshd
+      COLLECTIONS: "crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/dovecot crowdsecurity/postfix crowdsecurity/sshd"
       # Optional: enroll with CrowdSec Central API
       # ENROLL_KEY: "${CROWDSEC_ENROLL_KEY}"
       # ENROLL_INSTANCE_NAME: "${CROWDSEC_INSTANCE_NAME}"
@@ -27,7 +22,7 @@ services:
     ports:
       - "127.0.0.1:8082:8080"
     healthcheck:
-      test: ["CMD", "cscli", "version"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/v1/heartbeat || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -40,34 +35,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  crowdsec-firewall-bouncer:
-    image: crowdsecurity/crowdsec-firewall-bouncer:v0.0.31
-    container_name: crowdsec-firewall-bouncer
-    restart: always
-    network_mode: host
-    environment:
-      CROWDSEC_LAPI_URL: "http://127.0.0.1:8082"
-      CROWDSEC_LAPI_KEY: "${CROWDSEC_FIREWALL_BOUNCER_KEY}"
-      TZ: "${TZ:-Europe/Berlin}"
-      IPTABLES_CHAINS: "INPUT,FORWARD"
-      # For nftables-based systems, uncomment the following:
-      # MODE: nftables
-    volumes:
-      - firewall-bouncer-config:/etc/crowdsec/bouncers/
-    depends_on:
-      crowdsec:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    cap_drop:
-      - ALL
-
 networks:
   crowdsec-net:
     driver: bridge
@@ -78,4 +45,3 @@ networks:
 volumes:
   crowdsec-db:
   crowdsec-config:
-  firewall-bouncer-config:

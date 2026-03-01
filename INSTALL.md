@@ -2,6 +2,8 @@
 
 This guide walks you through installing CrowdSec as a drop-in replacement for Mailcow's built-in fail2ban.
 
+**Architecture:** CrowdSec runs as a Docker container alongside Mailcow. The firewall bouncer runs on the host as a systemd service — this is the [official recommendation](https://docs.crowdsec.net/u/bouncers/firewall/) because it needs direct access to iptables/nftables.
+
 ---
 
 ## Before you start
@@ -12,7 +14,7 @@ This guide walks you through installing CrowdSec as a drop-in replacement for Ma
 docker network ls | grep mailcow
 ```
 
-The default is `mailcowdockerized_mailcow-network`. If yours differs, update the `networks` section in `docker-compose.yml` accordingly.
+The default is `mailcowdockerized_mailcow-network`. If yours differs, update the `networks` section in `docker-compose.yml`.
 
 **2. Check your Mailcow container names**
 
@@ -33,7 +35,7 @@ If your names differ, update `acquis.yaml` with the correct names before proceed
 
 **3. Disable Mailcow's built-in fail2ban**
 
-CrowdSec and fail2ban can conflict (both try to manage iptables rules and both react to the same log events). Disable fail2ban first:
+CrowdSec and fail2ban can conflict (both manage iptables rules and react to the same log events). Disable fail2ban first:
 
 ```bash
 # In /opt/mailcow-dockerized/mailcow.conf, set:
@@ -69,23 +71,21 @@ cd mailcow_crowdsec
 cp .env.example .env
 ```
 
-Edit `.env` and set your timezone:
+Edit `.env` and set your timezone if needed:
 
 ```
 TZ=Europe/Berlin
 ```
-
-Leave `CROWDSEC_FIREWALL_BOUNCER_KEY` empty for now — it will be generated in Step 4.
 
 ---
 
 ## Step 3 — Start CrowdSec
 
 ```bash
-docker compose up -d crowdsec
+docker compose up -d
 ```
 
-Wait ~30 seconds for CrowdSec to initialize and become healthy, then verify:
+Wait ~30 seconds for CrowdSec to initialize, then verify:
 
 ```bash
 docker compose ps
@@ -113,7 +113,30 @@ docker exec crowdsec-mailcow cscli metrics show acquisition
 
 ---
 
-## Step 4 — Generate the bouncer API key
+## Step 4 — Install the firewall bouncer on the host
+
+The firewall bouncer blocks IPs via iptables or nftables. It runs on the host (not in Docker) because it needs direct access to the system firewall.
+
+**Install the package:**
+
+```bash
+# For iptables-based systems (most common):
+apt install crowdsec-firewall-bouncer-iptables
+
+# For nftables-based systems (Debian 11+, Ubuntu 22.04+):
+# apt install crowdsec-firewall-bouncer-nftables
+```
+
+> **How to check which firewall you use:**
+> ```bash
+> iptables --version
+> # If the output contains "(nf_tables)" → use the nftables package
+> # If it shows "(legacy)" or just a version → use the iptables package
+> ```
+
+---
+
+## Step 5 — Generate the bouncer API key
 
 ```bash
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
@@ -128,21 +151,32 @@ Api key for 'firewall-bouncer':
 Please keep this key since you will not be able to retrieve it!
 ```
 
-Copy this key into your `.env` file:
-
-```
-CROWDSEC_FIREWALL_BOUNCER_KEY=abc123xyz...
-```
-
 ---
 
-## Step 5 — Start the firewall bouncer
+## Step 6 — Configure the bouncer
+
+Edit the bouncer configuration on the host:
 
 ```bash
-docker compose up -d crowdsec-firewall-bouncer
+nano /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
 ```
 
-Verify the bouncer connected successfully:
+Set these values:
+
+```yaml
+api_url: http://127.0.0.1:8082/
+api_key: abc123xyz...   # ← paste your key from Step 5
+```
+
+Start and enable the bouncer:
+
+```bash
+systemctl enable crowdsec-firewall-bouncer
+systemctl start crowdsec-firewall-bouncer
+systemctl status crowdsec-firewall-bouncer
+```
+
+Verify the bouncer connected:
 
 ```bash
 docker exec crowdsec-mailcow cscli bouncers list
@@ -152,11 +186,14 @@ You should see `firewall-bouncer` with a recent "Last API pull" timestamp.
 
 ---
 
-## Step 6 — Verify everything works
+## Step 7 — Verify everything works
 
 ```bash
 # Container status
 docker compose ps
+
+# Bouncer service status
+systemctl status crowdsec-firewall-bouncer
 
 # Active bans (may be empty right after install — that's normal)
 docker exec crowdsec-mailcow cscli decisions list
@@ -164,13 +201,16 @@ docker exec crowdsec-mailcow cscli decisions list
 # Log processing stats
 docker exec crowdsec-mailcow cscli metrics show acquisition
 
+# Check iptables for CrowdSec chains
+iptables -L INPUT -n | grep -i crowdsec
+
 # Or use the helper script:
 ./crowdsec.sh status
 ```
 
 ---
 
-## Step 7 — Test detection
+## Step 8 — Test detection
 
 To confirm CrowdSec is actually detecting and blocking attacks:
 
@@ -181,7 +221,7 @@ To confirm CrowdSec is actually detecting and blocking attacks:
 docker exec crowdsec-mailcow cscli decisions list -a | head -20
 ```
 
-**Option B: Simulate a brute-force attack (from a different IP/machine)**
+**Option B: Simulate a brute-force attack (from a different machine)**
 
 > ⚠️ Do NOT run this from your own server — you will ban yourself.
 
@@ -204,12 +244,12 @@ docker exec crowdsec-mailcow cscli decisions list
 
 ```bash
 iptables -L INPUT -n | grep -i crowdsec
-# → Should show a jump to a CROWDSEC chain
+# → Should show a jump to a CROWDSEC chain with banned IPs
 ```
 
 ---
 
-## Step 8 (optional) — Whitelist your IPs
+## Step 9 (optional) — Whitelist your IPs
 
 Prevent your own IPs from being accidentally banned:
 
@@ -231,7 +271,7 @@ docker compose restart crowdsec
 
 ---
 
-## Step 9 (optional) — Enroll with CrowdSec Central API
+## Step 10 (optional) — Enroll with CrowdSec Central API
 
 Enrolling gives you a web dashboard at [app.crowdsec.net](https://app.crowdsec.net) with alerts, ban history, and remote management.
 
@@ -268,18 +308,22 @@ docker compose restart crowdsec
 docker exec crowdsec-mailcow cscli hub update
 docker exec crowdsec-mailcow cscli hub upgrade
 
-# Or use the helper script:
-./crowdsec.sh update
+# Or: ./crowdsec.sh update
 ```
 
-**Update Docker images:**
+**Update the CrowdSec Docker image:**
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-> After updating Docker images, you may need to regenerate the bouncer key if the CrowdSec database volume was reset.
+**Update the firewall bouncer:**
+
+```bash
+apt update && apt upgrade crowdsec-firewall-bouncer-iptables
+systemctl restart crowdsec-firewall-bouncer
+```
 
 ---
 
@@ -302,28 +346,35 @@ docker cp crowdsec-mailcow:/tmp/crowdsec-backup.db ./crowdsec-backup.db
 
 To completely remove CrowdSec and go back to Mailcow's built-in fail2ban:
 
-**1. Stop and remove CrowdSec containers:**
+**1. Stop and remove the firewall bouncer:**
+
+```bash
+systemctl stop crowdsec-firewall-bouncer
+systemctl disable crowdsec-firewall-bouncer
+apt remove crowdsec-firewall-bouncer-iptables
+```
+
+**2. Stop and remove the CrowdSec container:**
 
 ```bash
 cd mailcow_crowdsec
 docker compose down
 ```
 
-**2. Remove Docker volumes (deletes all CrowdSec data):**
+**3. Remove Docker volumes (deletes all CrowdSec data):**
 
 ```bash
-docker volume rm mailcow_crowdsec_crowdsec-db mailcow_crowdsec_crowdsec-config mailcow_crowdsec_firewall-bouncer-config
+docker volume rm mailcow_crowdsec_crowdsec-db mailcow_crowdsec_crowdsec-config
 ```
 
-**3. Verify iptables rules were cleaned up:**
+**4. Verify iptables rules were cleaned up:**
 
 ```bash
 iptables -L INPUT -n | grep -i crowdsec
-# → Should return nothing. If rules remain:
-# iptables -D INPUT -j CROWDSEC_CHAIN (adjust chain name)
+# → Should return nothing
 ```
 
-**4. Re-enable Mailcow fail2ban:**
+**5. Re-enable Mailcow fail2ban:**
 
 ```bash
 # In /opt/mailcow-dockerized/mailcow.conf, set:
@@ -335,7 +386,7 @@ docker compose down
 docker compose up -d
 ```
 
-**5. Verify fail2ban is running again:**
+**6. Verify fail2ban is running again:**
 
 ```bash
 docker ps | grep fail2ban

@@ -5,7 +5,6 @@
 set -euo pipefail
 
 CONTAINER="crowdsec-mailcow"
-BOUNCER_CONTAINER="crowdsec-firewall-bouncer"
 
 usage() {
   cat <<EOF
@@ -14,15 +13,15 @@ CrowdSec for Mailcow — Helper Script
 Usage: ./crowdsec.sh <command>
 
 Commands:
-  status      Show full status overview (containers, bans, metrics)
+  status      Show full status overview (container, bouncer, bans, metrics)
   bans        List all active bans
   alerts      Show recent alerts
   metrics     Show log processing metrics
-  unban       Remove a ban by IP:     ./crowdsec.sh unban 1.2.3.4
+  unban IP    Remove a ban by IP
   whitelist   Show currently whitelisted IPs
   update      Update CrowdSec hub (parsers, scenarios, collections)
   logs        Follow CrowdSec logs in real time
-  health      Check CAPI and bouncer connectivity
+  health      Check LAPI, CAPI, and bouncer connectivity
 EOF
 }
 
@@ -35,16 +34,24 @@ require_container() {
 
 cmd_status() {
   require_container
-  echo "=== Container Status ==="
-  docker compose ps 2>/dev/null || docker ps --filter "name=crowdsec" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+  echo "=== CrowdSec Container ==="
+  docker compose ps 2>/dev/null || docker ps --filter "name=$CONTAINER" --format "table {{.Names}}\t{{.Status}}"
+
+  echo ""
+  echo "=== Firewall Bouncer (host) ==="
+  if systemctl is-active crowdsec-firewall-bouncer &>/dev/null; then
+    echo "● crowdsec-firewall-bouncer: active (running)"
+  else
+    echo "○ crowdsec-firewall-bouncer: inactive or not installed"
+  fi
+
+  echo ""
+  echo "=== Bouncer API Connection ==="
+  docker exec "$CONTAINER" cscli bouncers list 2>/dev/null
 
   echo ""
   echo "=== Active Bans ==="
   docker exec "$CONTAINER" cscli decisions list -a 2>/dev/null || echo "(none)"
-
-  echo ""
-  echo "=== Bouncer Status ==="
-  docker exec "$CONTAINER" cscli bouncers list 2>/dev/null
 
   echo ""
   echo "=== Log Processing ==="
@@ -100,19 +107,38 @@ cmd_logs() {
 
 cmd_health() {
   require_container
-  echo "=== CAPI Status ==="
-  docker exec "$CONTAINER" cscli capi status 2>/dev/null
+
+  echo "=== LAPI Healthcheck ==="
+  if curl -sf http://127.0.0.1:8082/v1/heartbeat >/dev/null 2>&1; then
+    echo "✓ LAPI is healthy (port 8082)"
+  else
+    echo "✗ LAPI is NOT reachable on port 8082"
+  fi
 
   echo ""
-  echo "=== Bouncer Status ==="
+  echo "=== CAPI Status ==="
+  docker exec "$CONTAINER" cscli capi status 2>/dev/null || echo "✗ CAPI not connected"
+
+  echo ""
+  echo "=== Bouncer Connection ==="
   docker exec "$CONTAINER" cscli bouncers list 2>/dev/null
 
   echo ""
-  echo "=== LAPI Healthcheck ==="
-  if curl -sf http://127.0.0.1:8082/v1/heartbeat >/dev/null 2>&1; then
-    echo "LAPI is healthy ✓"
+  echo "=== Firewall Bouncer Service ==="
+  if systemctl is-active crowdsec-firewall-bouncer &>/dev/null; then
+    echo "✓ crowdsec-firewall-bouncer is running"
+    systemctl status crowdsec-firewall-bouncer --no-pager -l 2>/dev/null | grep -E "Active:|Main PID:" || true
   else
-    echo "LAPI is NOT reachable ✗"
+    echo "✗ crowdsec-firewall-bouncer is NOT running"
+    echo "  Install: apt install crowdsec-firewall-bouncer-iptables"
+  fi
+
+  echo ""
+  echo "=== iptables Rules ==="
+  if iptables -L INPUT -n 2>/dev/null | grep -qi crowdsec; then
+    echo "✓ CrowdSec iptables chain is active"
+  else
+    echo "○ No CrowdSec iptables rules found (may use nftables instead)"
   fi
 }
 

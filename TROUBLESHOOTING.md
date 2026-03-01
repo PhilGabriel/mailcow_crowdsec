@@ -9,20 +9,24 @@
 **If you still have console/KVM access (e.g., via your hosting provider):**
 
 ```bash
-# Find and remove the ban on your IP
+# Remove the ban on your IP
 docker exec crowdsec-mailcow cscli decisions delete --ip YOUR_IP
 
-# Verify it's removed
+# Verify
 docker exec crowdsec-mailcow cscli decisions list | grep YOUR_IP
 ```
 
-**If even SSH is blocked** (bouncer blocks at iptables level):
+**If even SSH is blocked** (bouncer runs on host, not in Docker):
 
 ```bash
-# From the console, temporarily flush the CrowdSec iptables chains
-iptables -F CROWDSEC_CHAIN   # actual chain name may vary
-# or simply restart the bouncer which clears its rules on start:
-docker restart crowdsec-firewall-bouncer
+# From KVM console, stop the bouncer temporarily:
+systemctl stop crowdsec-firewall-bouncer
+
+# Remove the ban:
+docker exec crowdsec-mailcow cscli decisions delete --ip YOUR_IP
+
+# Restart the bouncer:
+systemctl start crowdsec-firewall-bouncer
 ```
 
 **Prevent this in the future** — whitelist your IPs. See [Whitelisting your IPs](#whitelisting-your-ips).
@@ -63,13 +67,13 @@ docker compose restart crowdsec
 docker exec crowdsec-mailcow cscli metrics | grep whitelisted
 ```
 
-Whitelisted IPs will still appear in logs as "Lines whitelisted" but will never trigger a ban.
+Whitelisted IPs will appear in metrics as "Lines whitelisted" but will never trigger a ban.
 
 ---
 
 ## CrowdSec container won't start
 
-**Symptom:** `docker compose up -d crowdsec` fails or the container exits immediately.
+**Symptom:** `docker compose up -d` fails or the container exits immediately.
 
 **Check the logs:**
 ```bash
@@ -82,8 +86,8 @@ docker logs crowdsec-mailcow 2>&1 | tail -30
 |---|---|
 | `network mailcowdockerized_mailcow-network not found` | See [Wrong network name](#wrong-mailcow-network-name) |
 | `no such file or directory: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
-| `acquis.yaml: no such file or directory` | Make sure you're running `docker compose` from inside the cloned repo directory |
-| Permission denied on `/var/lib/docker/containers` | CrowdSec needs to run as root or have access to the Docker socket |
+| `acquis.yaml: no such file or directory` | Run `docker compose` from inside the cloned repo directory |
+| Permission denied on Docker socket | CrowdSec needs to run as root or have Docker socket access |
 
 ---
 
@@ -119,14 +123,14 @@ networks:
 no such file or directory: /var/log/auth.log
 ```
 
-**Fix:** Some systems (especially container-based VPS or custom setups) don't have `/var/log/auth.log`.
+Some systems (container-based VPS or custom setups) don't have `/var/log/auth.log`.
 
-Option A — Create it:
+**Option A** — Create it:
 ```bash
 touch /var/log/auth.log
 ```
 
-Option B — Remove the SSH log source from `acquis.yaml` if you don't need SSH protection:
+**Option B** — Remove the SSH log source from `acquis.yaml` if you don't need SSH protection:
 ```yaml
 # Comment out or remove the SSH section:
 # filenames:
@@ -152,7 +156,7 @@ Also remove the volume mount from `docker-compose.yml`:
 docker ps --format '{{.Names}}' | grep mailcow
 ```
 
-**Fix:** Update `acquis.yaml` to match your container names exactly. Example for a custom install:
+**Fix:** Update `acquis.yaml` to match your container names exactly:
 
 ```yaml
 source: docker
@@ -173,29 +177,30 @@ docker compose restart crowdsec
 
 **Symptom:** `cscli bouncers list` shows `firewall-bouncer` with an old or missing "Last API pull".
 
-**Check:**
+**Check the bouncer service:**
 ```bash
-docker logs crowdsec-firewall-bouncer 2>&1 | tail -20
+systemctl status crowdsec-firewall-bouncer
+journalctl -u crowdsec-firewall-bouncer --no-pager -n 30
 ```
 
 **Common causes:**
 
 | Error | Fix |
 |---|---|
-| `unauthorized` or `403` | Wrong API key in `.env` — regenerate (see below) |
+| `unauthorized` or `403` | Wrong API key — regenerate (see below) |
 | `connection refused` on port 8082 | CrowdSec container is not running or not yet healthy |
-| Bouncer container exits immediately | Check logs with `docker logs crowdsec-firewall-bouncer` |
+| `api_url` empty or wrong | Edit `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml` |
 
 **Regenerate the bouncer key:**
 ```bash
-# Delete old key
+# Delete old
 docker exec crowdsec-mailcow cscli bouncers delete firewall-bouncer
 
-# Create new key
+# Create new
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
-# → Update CROWDSEC_FIREWALL_BOUNCER_KEY in .env
+# → Paste key into /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
 
-docker compose restart crowdsec-firewall-bouncer
+systemctl restart crowdsec-firewall-bouncer
 ```
 
 ---
@@ -204,7 +209,7 @@ docker compose restart crowdsec-firewall-bouncer
 
 **Symptom:** CrowdSec runs, logs are being read, but `cscli decisions list` is always empty.
 
-This is normal behavior if no attack patterns have been detected yet. CrowdSec requires a threshold of events before triggering a ban (e.g., 5 failed logins within a time window).
+This is normal if no attack patterns have been detected yet. CrowdSec requires a threshold of events before triggering a ban (e.g., 5 failed logins within a time window).
 
 **Check what is being detected:**
 ```bash
@@ -216,7 +221,7 @@ docker exec crowdsec-mailcow cscli metrics show acquisition
 ```
 
 **If "Lines parsed" is 0 for a service:**
-→ The parser for that service is either not installed or the log format doesn't match. Check [Logs are not being parsed](#logs-are-not-being-parsed).
+→ Check [Logs are not being parsed](#logs-are-not-being-parsed).
 
 ---
 
@@ -224,7 +229,7 @@ docker exec crowdsec-mailcow cscli metrics show acquisition
 
 **Symptom:** `cscli metrics show acquisition` shows many "Lines unparsed" for a service.
 
-> **Note:** Rspamd and SOGo logs will always show as 100% unparsed — there are no official CrowdSec parsers for these services yet. This is expected and does not affect the protection of other services.
+> **Note:** Rspamd and SOGo logs will always show as 100% unparsed — there are no official CrowdSec parsers for these services yet. This is expected and does not affect protection of other services.
 
 **Check installed parsers and collections:**
 ```bash
@@ -245,47 +250,42 @@ docker compose restart crowdsec
 
 **Symptom:** Bans appear in `cscli decisions list` but IPs are not actually blocked.
 
-**Check the firewall bouncer logs:**
+**Check the bouncer service:**
 ```bash
-docker logs crowdsec-firewall-bouncer 2>&1 | tail -20
+systemctl status crowdsec-firewall-bouncer
+journalctl -u crowdsec-firewall-bouncer --no-pager -n 20
 ```
 
-**Check if iptables rules exist:**
+**Check iptables:**
 ```bash
 iptables -L INPUT -n | grep -i crowdsec
 ```
 
 **Common causes:**
-- The bouncer container is not running (`docker compose ps`)
-- The bouncer is not receiving decisions (API key issue — see above)
-- Your system uses **nftables** instead of iptables — see [nftables systems](#nftables-instead-of-iptables)
+- Bouncer service not running → `systemctl start crowdsec-firewall-bouncer`
+- Bouncer not receiving decisions → API key issue (see above)
+- Wrong firewall backend → see [nftables systems](#nftables-instead-of-iptables)
 
 ---
 
 ## nftables instead of iptables
 
-Modern Debian 11+/Ubuntu 22.04+ may use nftables as the default firewall backend. The bouncer supports both.
+Modern Debian 11+ / Ubuntu 22.04+ may use nftables as the default firewall backend.
 
 **Check which backend your system uses:**
 ```bash
-# If this returns rules, you're using iptables:
-iptables -L INPUT -n 2>/dev/null | head -5
-
-# If iptables shows "nf_tables" in the version, it's nftables behind the scenes:
 iptables --version
-# → "iptables v1.8.x (nf_tables)" = nftables backend
+# "iptables v1.8.x (nf_tables)" → nftables backend
+# "iptables v1.8.x (legacy)"    → iptables backend
 ```
 
-**To switch the bouncer to nftables mode**, uncomment in `docker-compose.yml`:
+**If you need to switch**, uninstall the iptables bouncer and install the nftables one:
 
-```yaml
-environment:
-  MODE: nftables
-```
-
-Then restart:
 ```bash
-docker compose restart crowdsec-firewall-bouncer
+apt remove crowdsec-firewall-bouncer-iptables
+apt install crowdsec-firewall-bouncer-nftables
+# → Update /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml with your API key
+systemctl enable --now crowdsec-firewall-bouncer
 ```
 
 ---
@@ -296,17 +296,17 @@ docker compose restart crowdsec-firewall-bouncer
 
 **Common causes:**
 
-1. **Ongoing attack** — An active attacker generates many log events:
+1. **Ongoing attack** — many log events being generated:
    ```bash
    docker exec crowdsec-mailcow cscli alerts list --limit 5
    ```
 
-2. **SQLite not in WAL mode** — Improves database performance under load:
+2. **SQLite not in WAL mode** — improves database performance:
    ```bash
    docker exec crowdsec-mailcow sqlite3 /var/lib/crowdsec/data/crowdsec.db "PRAGMA journal_mode=WAL;"
    ```
 
-3. **Very large log files** — CrowdSec only reads new lines from the current end of the file. This resolves itself after the initial catch-up.
+3. **Large initial log catch-up** — CrowdSec reads from the end of existing files. Resolves itself.
 
 ---
 
@@ -314,9 +314,7 @@ docker compose restart crowdsec-firewall-bouncer
 
 **Symptom:** Active bans in `cscli decisions list` are gone after a server restart.
 
-This is expected — CrowdSec bans are time-limited (default 4 hours) and stored in the database volume. If the volume is persisted, existing unexpired bans survive restarts.
-
-Make sure your volumes are properly configured (not using `--rm` when starting containers):
+This is expected — CrowdSec bans are time-limited (default 4 hours) and stored in the database volume. Unexpired bans survive container restarts as long as the volume persists.
 
 ```bash
 docker volume ls | grep crowdsec
@@ -327,30 +325,33 @@ docker volume inspect mailcow_crowdsec_crowdsec-db
 
 ## Check overall health
 
-Run this to get a full status overview:
+Full status overview:
 
 ```bash
-# Container status
+./crowdsec.sh health
+```
+
+Or manually:
+
+```bash
+# Container
 docker compose ps
 
-# All active bans
-docker exec crowdsec-mailcow cscli decisions list -a
+# LAPI
+curl -sf http://127.0.0.1:8082/v1/heartbeat && echo "LAPI OK"
 
-# CAPI (community API) connectivity
-docker exec crowdsec-mailcow cscli capi status
+# Bouncer service
+systemctl status crowdsec-firewall-bouncer
 
-# Bouncer connectivity
+# Bouncer connection
 docker exec crowdsec-mailcow cscli bouncers list
 
-# Hub component status
-docker exec crowdsec-mailcow cscli hub list
+# CAPI (community API)
+docker exec crowdsec-mailcow cscli capi status
+
+# Active bans
+docker exec crowdsec-mailcow cscli decisions list -a
 
 # Full metrics
 docker exec crowdsec-mailcow cscli metrics
-```
-
-Or use the included helper script:
-
-```bash
-./crowdsec.sh status
 ```

@@ -8,7 +8,7 @@
 
 > **Drop-in replacement for Mailcow's built-in fail2ban** — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
-CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, spam relaying attempts, and other abuse patterns, and blocks offending IPs via iptables. Unlike fail2ban, CrowdSec additionally benefits from a shared community blocklist with millions of known malicious IPs, blocking threats before they even attempt to attack your server.
+CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, spam relaying attempts, and other abuse patterns, and blocks offending IPs via iptables/nftables. Unlike fail2ban, CrowdSec additionally benefits from a shared community blocklist with millions of known malicious IPs, blocking threats before they even attempt to attack your server.
 
 ---
 
@@ -19,7 +19,7 @@ CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, s
 | **Detection** | Local log analysis only | Local analysis + shared community intelligence |
 | **Blocklist** | Only IPs that attacked *your* server | Millions of known-bad IPs from the CrowdSec network |
 | **Performance** | Single-threaded, regex-heavy | Go-based, multi-threaded, compiled parsers |
-| **Blocking** | iptables rules per IP | ipset/iptables — efficient even with thousands of IPs |
+| **Blocking** | iptables rules per IP | ipset/nftables sets — efficient with thousands of IPs |
 | **Dashboard** | CLI only | Optional web dashboard via [app.crowdsec.net](https://app.crowdsec.net) |
 | **Ecosystem** | Regex jails | Hub with maintained parsers, scenarios, and collections |
 | **Collaborative** | No | Yes — detected attackers are shared with the community |
@@ -35,21 +35,22 @@ Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
          ▼
   ┌─────────────────┐        ┌──────────────────────────┐
   │   CrowdSec      │◄──────►│  CrowdSec Central API    │
-  │  Log Processor  │        │  (community blocklist)   │
-  │  + LAPI         │        └──────────────────────────┘
+  │  Log Processor   │        │  (community blocklist)   │
+  │  + LAPI (Docker) │        └──────────────────────────┘
   └────────┬────────┘
-           │  ban decisions
+           │  ban decisions via API (:8082)
            ▼
   ┌─────────────────┐
   │  Firewall       │
-  │  Bouncer        │──► iptables / nftables DROP
+  │  Bouncer (host) │──► iptables / nftables DROP
   └─────────────────┘
 ```
 
-- **Log Processor** reads Docker container logs from all Mailcow services and SSH auth logs
-- **LAPI (Local API)** manages decisions and exposes them to bouncers
-- **Firewall Bouncer** translates ban decisions into iptables/nftables rules, blocking IPs at kernel level
-- **Community Blocklist** automatically pulls known-bad IPs from the CrowdSec network (no account required)
+- **CrowdSec (Docker)** reads container logs, detects attacks, serves ban decisions via LAPI
+- **Firewall Bouncer (host)** is a systemd service that queries the LAPI and manages iptables/nftables rules
+- **Community Blocklist** automatically pulls known-bad IPs from the CrowdSec network
+
+> **Why is the bouncer on the host?** The firewall bouncer needs direct access to the system's iptables/nftables. Running it as a host service is the [official CrowdSec recommendation](https://docs.crowdsec.net/u/bouncers/firewall/) — it's more reliable than running it in a privileged container.
 
 ---
 
@@ -61,7 +62,7 @@ Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
 - ✅ Blocks at iptables/nftables level — traffic never reaches your services
 - ✅ Supports both iptables and nftables
 - ✅ IP whitelisting for trusted networks
-- ✅ Healthcheck and logging limits built in
+- ✅ LAPI healthcheck and logging limits built in
 - ✅ Helper script for common operations
 - ✅ Optional: web dashboard via [app.crowdsec.net](https://app.crowdsec.net)
 - ✅ Replaces fail2ban with zero changes to Mailcow itself
@@ -75,17 +76,20 @@ git clone https://github.com/PhilGabriel/mailcow_crowdsec.git
 cd mailcow_crowdsec
 cp .env.example .env
 
-# Step 1: Start CrowdSec
-docker compose up -d crowdsec
+# Start CrowdSec
+docker compose up -d
 
-# Step 2: Generate API key for the bouncer
+# Install firewall bouncer on host
+apt install crowdsec-firewall-bouncer-iptables
+
+# Generate API key and configure bouncer
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
-# → Copy the key into .env as CROWDSEC_FIREWALL_BOUNCER_KEY
+# → Paste the key into /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+# → Set api_url: http://127.0.0.1:8082/
 
-# Step 3: Start the firewall bouncer
-docker compose up -d crowdsec-firewall-bouncer
+systemctl enable --now crowdsec-firewall-bouncer
 
-# Step 4: Check status
+# Check status
 ./crowdsec.sh status
 ```
 
@@ -105,7 +109,7 @@ docker compose up -d crowdsec-firewall-bouncer
 ./crowdsec.sh whitelist   # Show whitelisted IPs
 ./crowdsec.sh update      # Update hub components
 ./crowdsec.sh logs        # Follow CrowdSec logs
-./crowdsec.sh health      # Check CAPI + bouncer connectivity
+./crowdsec.sh health      # Check LAPI, CAPI, and bouncer
 ```
 
 ---
@@ -114,10 +118,10 @@ docker compose up -d crowdsec-firewall-bouncer
 
 ```
 mailcow_crowdsec/
-├── docker-compose.yml      # CrowdSec + Firewall Bouncer services
+├── docker-compose.yml      # CrowdSec container (LAPI + log processor)
 ├── acquis.yaml             # Log sources (Mailcow containers + SSH)
 ├── crowdsec.sh             # Helper script for common operations
-├── .env.example            # Required environment variables
+├── .env.example            # Environment variables
 ├── README.md               # This file
 ├── INSTALL.md              # Full installation guide (incl. uninstall)
 ├── TROUBLESHOOTING.md      # Common problems and solutions
@@ -130,11 +134,12 @@ mailcow_crowdsec/
 
 | Requirement | Details |
 |-------------|---------|
-| OS | Linux with iptables or nftables |
+| OS | Debian 11+ / Ubuntu 20.04+ (with apt) |
 | Docker | 20.10+ |
 | Docker Compose | v2 (plugin) |
 | Mailcow | Running via the official `docker-compose.yml` |
 | Mailcow network | `mailcowdockerized_mailcow-network` (default) |
+| Root access | Required for firewall bouncer installation |
 
 ---
 
