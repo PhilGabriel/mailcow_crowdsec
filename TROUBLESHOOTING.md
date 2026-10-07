@@ -84,35 +84,10 @@ docker logs crowdsec-mailcow 2>&1 | tail -30
 
 | Error in logs | Fix |
 |---|---|
-| `network mailcowdockerized_mailcow-network not found` | See [Wrong network name](#wrong-mailcow-network-name) |
 | `no such file or directory: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | `acquis.yaml: no such file or directory` | Run `docker compose` from inside the cloned repo directory |
+| `bind source path does not exist: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | Permission denied on Docker socket | CrowdSec needs to run as root or have Docker socket access |
-
----
-
-## Wrong Mailcow network name
-
-**Symptom:**
-```
-network mailcowdockerized_mailcow-network declared as external, but could not be found
-```
-
-**Fix:** Find your actual network name and update `docker-compose.yml`:
-
-```bash
-docker network ls | grep mailcow
-# Example output: mailcow_mailcow-network
-```
-
-Edit `docker-compose.yml`, change the `networks` section at the bottom:
-
-```yaml
-networks:
-  mailcow-network:
-    external: true
-    name: mailcow_mailcow-network  # ← your actual name here
-```
 
 ---
 
@@ -123,12 +98,14 @@ networks:
 no such file or directory: /var/log/auth.log
 ```
 
-Some systems (container-based VPS or custom setups) don't have `/var/log/auth.log`.
+Debian 12+ and some container-based VPS log SSH only to journald and have no `/var/log/auth.log`.
 
-**Option A** — Create it:
+**Option A** — Install rsyslog, which writes the file:
 ```bash
-touch /var/log/auth.log
+apt install rsyslog
 ```
+
+An empty file created with `touch` does not help: nothing writes SSH logins into it.
 
 **Option B** — Remove the SSH log source from `acquis.yaml` if you don't need SSH protection:
 ```yaml
@@ -139,11 +116,7 @@ touch /var/log/auth.log
 #   type: syslog
 ```
 
-Also remove the volume mount from `docker-compose.yml`:
-```yaml
-# Remove this line:
-# - /var/log/auth.log:/var/log/auth.log:ro
-```
+Also remove the `/var/log/auth.log` bind mount (the `type: bind` block) from `docker-compose.yml`.
 
 ---
 
@@ -193,6 +166,11 @@ journalctl -u crowdsec-firewall-bouncer --no-pager -n 30
 
 **Regenerate the bouncer key:**
 ```bash
+sudo ./crowdsec.sh setup-bouncer
+```
+
+Or manually:
+```bash
 # Delete old
 docker exec crowdsec-mailcow cscli bouncers delete firewall-bouncer
 
@@ -225,11 +203,43 @@ docker exec crowdsec-mailcow cscli metrics show acquisition
 
 ---
 
+## No log lines read at all
+
+**Symptom:** `cscli metrics show acquisition` lists no `docker:` sources.
+
+CrowdSec reads container logs through `crowdsec-socket-proxy`. Check its log for denied requests:
+
+```bash
+docker logs crowdsec-socket-proxy 2>&1 | grep -E " 403 |ALERT"
+```
+
+| Finding | Fix |
+|---|---|
+| `403` on `/containers/.../logs` | `ALLOW_LOGS: 1` is missing in `docker-compose.yml` |
+| `cannot create receiving socket ... [:::2375]` | Host has IPv6 disabled and `DISABLE_IPV6: 1` is missing |
+| Container keeps restarting | Check `docker logs crowdsec-socket-proxy` for the cause |
+
+---
+
+## Mailcow behind a reverse proxy
+
+**Symptom:** Bans hit the reverse proxy IP, or webmail stops working for everyone.
+
+Mailcow's nginx logs the address of the connecting peer. Behind a reverse proxy that is the proxy, so CrowdSec sees every web request coming from one IP. Mail ports (SMTP, IMAP) usually bypass the proxy and are unaffected.
+
+**1. Whitelist the proxy IP** (always): add it to the whitelist file, see [Whitelisting your IPs](#whitelisting-your-ips). Without this step, one attacker can get the proxy banned.
+
+**2. Restore client IPs in Mailcow's nginx** (optional): with the nginx `real_ip` module (`set_real_ip_from <proxy IP>;` and `real_ip_header X-Forwarded-For;`), Mailcow logs the client IP again and the HTTP scenarios work. Where Mailcow loads custom nginx config depends on your Mailcow version. Check the Mailcow documentation before you change it.
+
+**3. Where the ban takes effect:** the firewall bouncer drops packets by source IP. If the proxy runs on another machine, packets reach Mailcow from the proxy, and a ban on the client IP blocks nothing for web traffic. Then the ban has to happen on the proxy host, for example with a second bouncer there.
+
+---
+
 ## Logs are not being parsed
 
 **Symptom:** `cscli metrics show acquisition` shows many "Lines unparsed" for a service.
 
-> **Note:** Rspamd and SOGo logs will always show as 100% unparsed — there are no official CrowdSec parsers for these services yet. This is expected and does not affect protection of other services.
+> **Note:** CrowdSec has no parsers for Rspamd and SOGo, so this project does not read their logs. Failed logins there reach CrowdSec through netfilter-mailcow bans (`Guezli/mailcow-f2b-bans`).
 
 **Check installed parsers and collections:**
 ```bash
@@ -256,12 +266,14 @@ systemctl status crowdsec-firewall-bouncer
 journalctl -u crowdsec-firewall-bouncer --no-pager -n 20
 ```
 
-**Check iptables:**
+**Check the firewall:**
 ```bash
-iptables -L INPUT -n | grep -i crowdsec
+iptables -S INPUT | grep -i crowdsec
+iptables -S DOCKER-USER | grep -i crowdsec
 ```
 
 **Common causes:**
+- SSH is blocked, but SMTP/IMAP/webmail are not → `DOCKER-USER` is missing from `iptables_chains` in `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml`. Docker-published ports bypass the `INPUT` chain. Add the chain and restart the bouncer.
 - Bouncer service not running → `systemctl start crowdsec-firewall-bouncer`
 - Bouncer not receiving decisions → API key issue (see above)
 - Wrong firewall backend → see [nftables systems](#nftables-instead-of-iptables)
@@ -288,6 +300,8 @@ apt install crowdsec-firewall-bouncer-nftables
 systemctl enable --now crowdsec-firewall-bouncer
 ```
 
+The nftables bouncer hooks into `input` and `forward` by default, so it also covers Docker-published ports.
+
 ---
 
 ## CrowdSec is using too much CPU
@@ -301,9 +315,10 @@ systemctl enable --now crowdsec-firewall-bouncer
    docker exec crowdsec-mailcow cscli alerts list --limit 5
    ```
 
-2. **SQLite not in WAL mode** — improves database performance:
+2. **SQLite not in WAL mode**. `docker-compose.yml` sets `USE_WAL: "true"` since v0.2.0-alpha. Check:
    ```bash
-   docker exec crowdsec-mailcow sqlite3 /var/lib/crowdsec/data/crowdsec.db "PRAGMA journal_mode=WAL;"
+   docker exec crowdsec-mailcow grep use_wal /etc/crowdsec/config.yaml
+   # → use_wal: true
    ```
 
 3. **Large initial log catch-up** — CrowdSec reads from the end of existing files. Resolves itself.
@@ -349,8 +364,8 @@ docker exec crowdsec-mailcow cscli bouncers list
 # CAPI (community API)
 docker exec crowdsec-mailcow cscli capi status
 
-# Active bans
-docker exec crowdsec-mailcow cscli decisions list -a
+# Active local bans (add -a to include the community blocklist)
+docker exec crowdsec-mailcow cscli decisions list
 
 # Full metrics
 docker exec crowdsec-mailcow cscli metrics

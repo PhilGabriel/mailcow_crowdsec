@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide walks you through installing CrowdSec as a drop-in replacement for Mailcow's built-in fail2ban.
+This guide walks you through installing CrowdSec for Mailcow. It runs alongside Mailcow's built-in ban engine (netfilter-mailcow).
 
 **Architecture:** CrowdSec runs as a Docker container alongside Mailcow. The firewall bouncer runs on the host as a systemd service — this is the [official recommendation](https://docs.crowdsec.net/u/bouncers/firewall/) because it needs direct access to iptables/nftables.
 
@@ -8,15 +8,7 @@ This guide walks you through installing CrowdSec as a drop-in replacement for Ma
 
 ## Before you start
 
-**1. Check your Mailcow network name**
-
-```bash
-docker network ls | grep mailcow
-```
-
-The default is `mailcowdockerized_mailcow-network`. If yours differs, update the `networks` section in `docker-compose.yml`.
-
-**2. Check your Mailcow container names**
+**1. Check your Mailcow container names**
 
 ```bash
 docker ps --format '{{.Names}}' | grep mailcow
@@ -27,32 +19,30 @@ Expected names (default Mailcow install):
 mailcowdockerized-nginx-mailcow-1
 mailcowdockerized-postfix-mailcow-1
 mailcowdockerized-dovecot-mailcow-1
-mailcowdockerized-rspamd-mailcow-1
-mailcowdockerized-sogo-mailcow-1
+mailcowdockerized-netfilter-mailcow-1
 ```
 
 If your names differ, update `acquis.yaml` with the correct names before proceeding.
 
-**3. Disable Mailcow's built-in fail2ban**
+**2. Mailcow's built-in ban engine (netfilter-mailcow)**
 
-CrowdSec and fail2ban can conflict (both manage iptables rules and react to the same log events). Disable fail2ban first:
+Mailcow ships its own fail2ban-style ban engine in the `netfilter-mailcow` container. `mailcow.conf` has no switch to disable it, and other Mailcow services declare it in `depends_on`. Leave it running: it uses its own `MAILCOW` chain and works alongside CrowdSec. You can adjust its thresholds under "Fail2ban parameters" in the Mailcow admin UI.
 
-```bash
-# In /opt/mailcow-dockerized/mailcow.conf, set:
-SKIP_FAIL2BAN=y
+CrowdSec also reads its log. Every netfilter ban becomes a CrowdSec decision (`Guezli/mailcow-f2b-feed`). This covers failed logins CrowdSec has no parser for: Mailcow UI, SOGo and Rspamd UI.
 
-# Then apply:
-cd /opt/mailcow-dockerized
-docker compose down
-docker compose up -d
-```
+**3. Make sure `/var/log/auth.log` exists**
 
-Verify fail2ban is no longer running:
+Debian 12 and newer log SSH only to journald by default. CrowdSec reads SSH logins from `/var/log/auth.log`, so install rsyslog if the file is missing:
 
 ```bash
-docker ps | grep fail2ban
-# → should return nothing
+ls -l /var/log/auth.log || apt install rsyslog
 ```
+
+Without SSH protection: remove the auth.log source from `acquis.yaml` and the bind mount from `docker-compose.yml` (see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#missing-log-files)).
+
+**4. Reverse proxy in front of Mailcow?**
+
+Then Mailcow's nginx logs the proxy IP instead of the client IP, and CrowdSec would ban the proxy. Read [Mailcow behind a reverse proxy](TROUBLESHOOTING.md#mailcow-behind-a-reverse-proxy) first.
 
 ---
 
@@ -117,6 +107,12 @@ docker exec crowdsec-mailcow cscli metrics show acquisition
 
 The firewall bouncer blocks IPs via iptables or nftables. It runs on the host (not in Docker) because it needs direct access to the system firewall.
 
+**Add the CrowdSec package repository** (Debian/Ubuntu ship no or outdated bouncer packages):
+
+```bash
+curl -s https://install.crowdsec.net | sh
+```
+
 **Install the package:**
 
 ```bash
@@ -136,24 +132,32 @@ apt install crowdsec-firewall-bouncer-iptables
 
 ---
 
-## Step 5 — Generate the bouncer API key
+## Step 5 — Connect the bouncer
+
+```bash
+sudo ./crowdsec.sh setup-bouncer
+```
+
+The command:
+
+1. registers `firewall-bouncer` in CrowdSec and generates its API key,
+2. writes `api_url` and `api_key` into `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml` (backup: `.bak`),
+3. adds `DOCKER-USER` to `iptables_chains` in iptables mode,
+4. restarts the bouncer.
+
+Running it again replaces the key. Then enable the service at boot:
+
+```bash
+systemctl enable crowdsec-firewall-bouncer
+```
+
+### Manual alternative
+
+Generate a key:
 
 ```bash
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
 ```
-
-The command outputs a key like:
-```
-Api key for 'firewall-bouncer':
-
-         abc123xyz...
-
-Please keep this key since you will not be able to retrieve it!
-```
-
----
-
-## Step 6 — Configure the bouncer
 
 Edit the bouncer configuration on the host:
 
@@ -165,8 +169,18 @@ Set these values:
 
 ```yaml
 api_url: http://127.0.0.1:8082/
-api_key: abc123xyz...   # ← paste your key from Step 5
+api_key: abc123xyz...   # ← paste the generated key
 ```
+
+**iptables package only:** add the `DOCKER-USER` chain. Docker publishes the Mailcow ports, so mail traffic passes the FORWARD path and never touches `INPUT`. Without this entry, bans only block SSH and other host services, not SMTP, IMAP or webmail:
+
+```yaml
+iptables_chains:
+  - INPUT
+  - DOCKER-USER
+```
+
+The nftables package hooks into `input` and `forward` by default (`nftables_hooks`) and needs no change.
 
 Start and enable the bouncer:
 
@@ -186,7 +200,7 @@ You should see `firewall-bouncer` with a recent "Last API pull" timestamp.
 
 ---
 
-## Step 7 — Verify everything works
+## Step 6 — Verify everything works
 
 ```bash
 # Container status
@@ -201,8 +215,12 @@ docker exec crowdsec-mailcow cscli decisions list
 # Log processing stats
 docker exec crowdsec-mailcow cscli metrics show acquisition
 
-# Check iptables for CrowdSec chains
-iptables -L INPUT -n | grep -i crowdsec
+# Check iptables for CrowdSec rules (iptables package)
+iptables -S INPUT | grep -i crowdsec
+iptables -S DOCKER-USER | grep -i crowdsec
+
+# Or nftables package
+nft list tables | grep crowdsec
 
 # Or use the helper script:
 ./crowdsec.sh status
@@ -210,7 +228,7 @@ iptables -L INPUT -n | grep -i crowdsec
 
 ---
 
-## Step 8 — Test detection
+## Step 7 — Test detection
 
 To confirm CrowdSec is actually detecting and blocking attacks:
 
@@ -243,13 +261,16 @@ docker exec crowdsec-mailcow cscli decisions list
 **Option C: Verify iptables rules are being created**
 
 ```bash
-iptables -L INPUT -n | grep -i crowdsec
-# → Should show a jump to a CROWDSEC chain with banned IPs
+iptables -S DOCKER-USER | grep -i crowdsec
+# → Should show a DROP rule matching the crowdsec-blacklists ipset
+
+ipset list crowdsec-blacklists | head
+# → Lists the banned IPs
 ```
 
 ---
 
-## Step 9 (optional) — Whitelist your IPs
+## Step 8 (optional) — Whitelist your IPs
 
 Prevent your own IPs from being accidentally banned:
 
@@ -271,7 +292,7 @@ docker compose restart crowdsec
 
 ---
 
-## Step 10 (optional) — Enroll with CrowdSec Central API
+## Step 9 (optional) — Enroll with CrowdSec Central API
 
 Enrolling gives you a web dashboard at [app.crowdsec.net](https://app.crowdsec.net) with alerts, ban history, and remote management.
 
@@ -332,13 +353,14 @@ systemctl restart crowdsec-firewall-bouncer
 The CrowdSec database (bans, alerts, local config) lives in the `crowdsec-db` Docker volume:
 
 ```bash
-# Find volume location
-docker volume inspect mailcow_crowdsec_crowdsec-db --format '{{ .Mountpoint }}'
-
-# Backup
-docker exec crowdsec-mailcow sqlite3 /var/lib/crowdsec/data/crowdsec.db ".backup /tmp/crowdsec-backup.db"
-docker cp crowdsec-mailcow:/tmp/crowdsec-backup.db ./crowdsec-backup.db
+# The CrowdSec image contains no sqlite3 binary. Stop the container for a consistent copy:
+docker compose stop crowdsec
+docker run --rm -v mailcow_crowdsec_crowdsec-db:/data:ro -v "$PWD":/backup alpine \
+  tar czf /backup/crowdsec-db-backup.tar.gz -C /data .
+docker compose start crowdsec
 ```
+
+The volume prefix `mailcow_crowdsec_` matches the directory name of the clone. Check with `docker volume ls | grep crowdsec`.
 
 ---
 
@@ -367,27 +389,12 @@ docker compose down
 docker volume rm mailcow_crowdsec_crowdsec-db mailcow_crowdsec_crowdsec-config
 ```
 
-**4. Verify iptables rules were cleaned up:**
+**4. Verify firewall rules were cleaned up:**
 
 ```bash
-iptables -L INPUT -n | grep -i crowdsec
-# → Should return nothing
+iptables -S | grep -i crowdsec
+nft list tables | grep crowdsec
+# → Both should return nothing
 ```
 
-**5. Re-enable Mailcow fail2ban:**
-
-```bash
-# In /opt/mailcow-dockerized/mailcow.conf, set:
-SKIP_FAIL2BAN=n
-
-# Then apply:
-cd /opt/mailcow-dockerized
-docker compose down
-docker compose up -d
-```
-
-**6. Verify fail2ban is running again:**
-
-```bash
-docker ps | grep fail2ban
-```
+Mailcow's own `netfilter-mailcow` keeps running throughout and needs no change.
