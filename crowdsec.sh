@@ -6,6 +6,9 @@ set -euo pipefail
 
 CONTAINER="crowdsec-mailcow"
 
+# docker compose needs the project directory, wherever the script is called from
+cd "$(dirname "$(readlink -f "$0")")"
+
 usage() {
   cat <<EOF
 CrowdSec for Mailcow — Helper Script
@@ -14,7 +17,7 @@ Usage: ./crowdsec.sh <command>
 
 Commands:
   status      Show full status overview (container, bouncer, bans, metrics)
-  bans        List all active bans
+  bans        List local bans (add --all to include the community blocklist)
   alerts      Show recent alerts
   metrics     Show log processing metrics
   unban IP    Remove a ban by IP
@@ -26,7 +29,7 @@ EOF
 }
 
 require_container() {
-  if ! docker inspect "$CONTAINER" &>/dev/null; then
+  if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" != "true" ]]; then
     echo "Error: Container '$CONTAINER' is not running."
     exit 1
   fi
@@ -50,8 +53,8 @@ cmd_status() {
   docker exec "$CONTAINER" cscli bouncers list 2>/dev/null
 
   echo ""
-  echo "=== Active Bans ==="
-  docker exec "$CONTAINER" cscli decisions list -a 2>/dev/null || echo "(none)"
+  echo "=== Active Bans (local) ==="
+  docker exec "$CONTAINER" cscli decisions list 2>/dev/null || echo "(none)"
 
   echo ""
   echo "=== Log Processing ==="
@@ -60,7 +63,11 @@ cmd_status() {
 
 cmd_bans() {
   require_container
-  docker exec "$CONTAINER" cscli decisions list -a
+  if [[ "${1:-}" == "--all" ]]; then
+    docker exec "$CONTAINER" cscli decisions list -a
+  else
+    docker exec "$CONTAINER" cscli decisions list
+  fi
 }
 
 cmd_alerts() {
@@ -102,6 +109,7 @@ cmd_update() {
 }
 
 cmd_logs() {
+  require_container
   docker logs -f "$CONTAINER" 2>&1
 }
 
@@ -134,17 +142,25 @@ cmd_health() {
   fi
 
   echo ""
-  echo "=== iptables Rules ==="
-  if iptables -L INPUT -n 2>/dev/null | grep -qi crowdsec; then
-    echo "✓ CrowdSec iptables chain is active"
+  echo "=== Firewall Rules ==="
+  if nft list tables 2>/dev/null | grep -q crowdsec; then
+    echo "✓ CrowdSec nftables tables are active"
   else
-    echo "○ No CrowdSec iptables rules found (may use nftables instead)"
+    local chain
+    for chain in INPUT DOCKER-USER; do
+      if iptables -S "$chain" 2>/dev/null | grep -q crowdsec; then
+        echo "✓ CrowdSec rule present in iptables chain $chain"
+      else
+        echo "✗ No CrowdSec rule in iptables chain $chain"
+      fi
+    done
+    echo "  Mailcow ports are published by Docker: without DOCKER-USER, bans do not block mail traffic."
   fi
 }
 
 case "${1:-}" in
   status)    cmd_status ;;
-  bans)      cmd_bans ;;
+  bans)      cmd_bans "${2:-}" ;;
   alerts)    cmd_alerts ;;
   metrics)   cmd_metrics ;;
   unban)     cmd_unban "${2:-}" ;;

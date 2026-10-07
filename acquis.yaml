@@ -7,11 +7,14 @@ labels:
 
 ---
 # Dovecot (IMAP/POP3)
+# Mailcow writes Dovecot and Postfix logs via syslog-ng in syslog format.
+# type "syslog" lets crowdsecurity/syslog-logs extract the program name,
+# which the dovecot and postfix parsers filter on.
 source: docker
 container_name:
   - mailcowdockerized-dovecot-mailcow-1
 labels:
-  type: dovecot
+  type: syslog
 
 ---
 # Postfix (SMTP)
@@ -19,7 +22,7 @@ source: docker
 container_name:
   - mailcowdockerized-postfix-mailcow-1
 labels:
-  type: postfix
+  type: syslog
 
 ---
 # Rspamd (spam filter)

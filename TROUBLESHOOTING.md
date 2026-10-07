@@ -87,6 +87,7 @@ docker logs crowdsec-mailcow 2>&1 | tail -30
 | `network mailcowdockerized_mailcow-network not found` | See [Wrong network name](#wrong-mailcow-network-name) |
 | `no such file or directory: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | `acquis.yaml: no such file or directory` | Run `docker compose` from inside the cloned repo directory |
+| `bind source path does not exist: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | Permission denied on Docker socket | CrowdSec needs to run as root or have Docker socket access |
 
 ---
@@ -123,12 +124,14 @@ networks:
 no such file or directory: /var/log/auth.log
 ```
 
-Some systems (container-based VPS or custom setups) don't have `/var/log/auth.log`.
+Debian 12+ and some container-based VPS log SSH only to journald and have no `/var/log/auth.log`.
 
-**Option A** — Create it:
+**Option A** — Install rsyslog, which writes the file:
 ```bash
-touch /var/log/auth.log
+apt install rsyslog
 ```
+
+An empty file created with `touch` does not help: nothing writes SSH logins into it.
 
 **Option B** — Remove the SSH log source from `acquis.yaml` if you don't need SSH protection:
 ```yaml
@@ -139,11 +142,7 @@ touch /var/log/auth.log
 #   type: syslog
 ```
 
-Also remove the volume mount from `docker-compose.yml`:
-```yaml
-# Remove this line:
-# - /var/log/auth.log:/var/log/auth.log:ro
-```
+Also remove the `/var/log/auth.log` bind mount (the `type: bind` block) from `docker-compose.yml`.
 
 ---
 
@@ -256,12 +255,14 @@ systemctl status crowdsec-firewall-bouncer
 journalctl -u crowdsec-firewall-bouncer --no-pager -n 20
 ```
 
-**Check iptables:**
+**Check the firewall:**
 ```bash
-iptables -L INPUT -n | grep -i crowdsec
+iptables -S INPUT | grep -i crowdsec
+iptables -S DOCKER-USER | grep -i crowdsec
 ```
 
 **Common causes:**
+- SSH is blocked, but SMTP/IMAP/webmail are not → `DOCKER-USER` is missing from `iptables_chains` in `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml`. Docker-published ports bypass the `INPUT` chain. Add the chain and restart the bouncer.
 - Bouncer service not running → `systemctl start crowdsec-firewall-bouncer`
 - Bouncer not receiving decisions → API key issue (see above)
 - Wrong firewall backend → see [nftables systems](#nftables-instead-of-iptables)
@@ -288,6 +289,8 @@ apt install crowdsec-firewall-bouncer-nftables
 systemctl enable --now crowdsec-firewall-bouncer
 ```
 
+The nftables bouncer hooks into `input` and `forward` by default, so it also covers Docker-published ports.
+
 ---
 
 ## CrowdSec is using too much CPU
@@ -301,9 +304,10 @@ systemctl enable --now crowdsec-firewall-bouncer
    docker exec crowdsec-mailcow cscli alerts list --limit 5
    ```
 
-2. **SQLite not in WAL mode** — improves database performance:
+2. **SQLite not in WAL mode**. `docker-compose.yml` sets `USE_WAL: "true"` since v0.2.0-alpha. Check:
    ```bash
-   docker exec crowdsec-mailcow sqlite3 /var/lib/crowdsec/data/crowdsec.db "PRAGMA journal_mode=WAL;"
+   docker exec crowdsec-mailcow grep use_wal /etc/crowdsec/config.yaml
+   # → use_wal: true
    ```
 
 3. **Large initial log catch-up** — CrowdSec reads from the end of existing files. Resolves itself.
@@ -349,8 +353,8 @@ docker exec crowdsec-mailcow cscli bouncers list
 # CAPI (community API)
 docker exec crowdsec-mailcow cscli capi status
 
-# Active bans
-docker exec crowdsec-mailcow cscli decisions list -a
+# Active local bans (add -a to include the community blocklist)
+docker exec crowdsec-mailcow cscli decisions list
 
 # Full metrics
 docker exec crowdsec-mailcow cscli metrics

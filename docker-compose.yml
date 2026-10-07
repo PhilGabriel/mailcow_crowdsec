@@ -1,6 +1,6 @@
 services:
   crowdsec:
-    image: crowdsecurity/crowdsec:v1.7.4
+    image: crowdsecurity/crowdsec:v1.8.1
     container_name: crowdsec-mailcow
     restart: always
     environment:
@@ -9,12 +9,21 @@ services:
       # ENROLL_KEY: "${CROWDSEC_ENROLL_KEY}"
       # ENROLL_INSTANCE_NAME: "${CROWDSEC_INSTANCE_NAME}"
       TZ: "${TZ:-Europe/Berlin}"
+      # SQLite write-ahead log, avoids the startup warning and improves performance
+      USE_WAL: "true"
     volumes:
       - crowdsec-db:/var/lib/crowdsec/data/
       - crowdsec-config:/etc/crowdsec/
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/log/auth.log:/var/log/auth.log:ro
+      # Long syntax: fail if auth.log is missing instead of
+      # silently creating a directory at that path on the host
+      - type: bind
+        source: /var/log/auth.log
+        target: /var/log/auth.log
+        read_only: true
+        bind:
+          create_host_path: false
       - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
     networks:
       - crowdsec-net

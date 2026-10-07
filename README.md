@@ -6,7 +6,9 @@
 
 ---
 
-> **Drop-in replacement for Mailcow's built-in fail2ban** — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
+**Version:** 0.2.0-alpha · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
+
+> **CrowdSec protection for Mailcow**, running alongside Mailcow's built-in ban engine (netfilter-mailcow) — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
 CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, spam relaying attempts, and other abuse patterns, and blocks offending IPs via iptables/nftables. Unlike fail2ban, CrowdSec additionally benefits from a shared community blocklist with millions of known malicious IPs, blocking threats before they even attempt to attack your server.
 
@@ -65,7 +67,7 @@ Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
 - ✅ LAPI healthcheck and logging limits built in
 - ✅ Helper script for common operations
 - ✅ Optional: web dashboard via [app.crowdsec.net](https://app.crowdsec.net)
-- ✅ Replaces fail2ban with zero changes to Mailcow itself
+- ✅ Zero changes to Mailcow itself
 
 ---
 
@@ -79,13 +81,15 @@ cp .env.example .env
 # Start CrowdSec
 docker compose up -d
 
-# Install firewall bouncer on host
+# Install firewall bouncer on host (adds the CrowdSec apt repository first)
+curl -s https://install.crowdsec.net | sh
 apt install crowdsec-firewall-bouncer-iptables
 
 # Generate API key and configure bouncer
 docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
 # → Paste the key into /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
 # → Set api_url: http://127.0.0.1:8082/
+# → Add DOCKER-USER to iptables_chains, otherwise bans do not block mail ports
 
 systemctl enable --now crowdsec-firewall-bouncer
 
@@ -102,7 +106,7 @@ systemctl enable --now crowdsec-firewall-bouncer
 
 ```bash
 ./crowdsec.sh status      # Full status overview
-./crowdsec.sh bans        # List active bans
+./crowdsec.sh bans        # List local bans (--all incl. community blocklist)
 ./crowdsec.sh alerts      # Show recent alerts
 ./crowdsec.sh metrics     # Log processing stats
 ./crowdsec.sh unban IP    # Remove a ban
@@ -122,6 +126,7 @@ mailcow_crowdsec/
 ├── acquis.yaml             # Log sources (Mailcow containers + SSH)
 ├── crowdsec.sh             # Helper script for common operations
 ├── .env.example            # Environment variables
+├── CHANGELOG.md            # Version history
 ├── README.md               # This file
 ├── INSTALL.md              # Full installation guide (incl. uninstall)
 ├── TROUBLESHOOTING.md      # Common problems and solutions
