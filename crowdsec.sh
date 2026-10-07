@@ -5,6 +5,8 @@
 set -euo pipefail
 
 CONTAINER="crowdsec-mailcow"
+BOUNCER_NAME="firewall-bouncer"
+BOUNCER_CONFIG="/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml"
 
 # docker compose needs the project directory, wherever the script is called from
 cd "$(dirname "$(readlink -f "$0")")"
@@ -25,6 +27,7 @@ Commands:
   update      Update CrowdSec hub (parsers, scenarios, collections)
   logs        Follow CrowdSec logs in real time
   health      Check LAPI, CAPI, and bouncer connectivity
+  setup-bouncer  Register the host firewall bouncer and write its config (root)
 EOF
 }
 
@@ -158,6 +161,41 @@ cmd_health() {
   fi
 }
 
+cmd_setup_bouncer() {
+  require_container
+  if [[ $EUID -ne 0 ]]; then
+    echo "Error: run as root (writes $BOUNCER_CONFIG and restarts the bouncer)."
+    exit 1
+  fi
+  if [[ ! -f "$BOUNCER_CONFIG" ]]; then
+    echo "Error: $BOUNCER_CONFIG not found. Install the bouncer package first (see INSTALL.md)."
+    exit 1
+  fi
+
+  # A key cannot be read back, so an existing registration is replaced
+  if docker exec "$CONTAINER" cscli bouncers list -o raw | grep -q "^$BOUNCER_NAME,"; then
+    echo "Replacing existing bouncer registration '$BOUNCER_NAME'"
+    docker exec "$CONTAINER" cscli bouncers delete "$BOUNCER_NAME" &>/dev/null
+  fi
+  local key
+  key=$(docker exec "$CONTAINER" cscli bouncers add "$BOUNCER_NAME" -o raw)
+
+  cp "$BOUNCER_CONFIG" "$BOUNCER_CONFIG.bak"
+  sed -i -e "s|^api_url:.*|api_url: http://127.0.0.1:8082/|" \
+         -e "s|^api_key:.*|api_key: $key|" "$BOUNCER_CONFIG"
+
+  # Docker-published Mailcow ports bypass INPUT (nftables mode hooks forward by default)
+  if grep -qE "^mode: *(iptables|ipset)" "$BOUNCER_CONFIG" && ! grep -qE "^ *- *DOCKER-USER" "$BOUNCER_CONFIG"; then
+    sed -i "/^iptables_chains:/a\\  - DOCKER-USER" "$BOUNCER_CONFIG"
+    echo "Added DOCKER-USER to iptables_chains"
+  fi
+  echo "Updated $BOUNCER_CONFIG (backup: $BOUNCER_CONFIG.bak)"
+
+  systemctl restart crowdsec-firewall-bouncer
+  sleep 3
+  docker exec "$CONTAINER" cscli bouncers list
+}
+
 case "${1:-}" in
   status)    cmd_status ;;
   bans)      cmd_bans "${2:-}" ;;
@@ -168,5 +206,6 @@ case "${1:-}" in
   update)    cmd_update ;;
   logs)      cmd_logs ;;
   health)    cmd_health ;;
+  setup-bouncer) cmd_setup_bouncer ;;
   *)         usage ;;
 esac

@@ -1,0 +1,7 @@
+Sep  8 07:16:21 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test1@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z1>
+Sep  8 07:16:22 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test2@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z2>
+Sep  8 07:16:23 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test3@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z3>
+Sep  8 07:16:24 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test4@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z4>
+Sep  8 07:16:25 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test5@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z5>
+Sep  8 07:16:26 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test6@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z6>
+Sep  8 07:16:27 mail dovecot: imap-login: Disconnected (auth failed, 1 attempts in 6 secs): user=<test7@example.com>, method=PLAIN, rip=198.51.100.20, lip=203.0.113.1, TLS, session=<azdaDADSqqsvf-z7>

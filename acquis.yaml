@@ -1,49 +1,37 @@
+# All Docker sources read through the socket proxy (see docker-compose.yml).
+
 # Mailcow Nginx (webmail, admin UI)
 source: docker
+docker_host: tcp://socket-proxy:2375
 container_name:
   - mailcowdockerized-nginx-mailcow-1
 labels:
   type: nginx
 
 ---
-# Dovecot (IMAP/POP3)
-# Mailcow writes Dovecot and Postfix logs via syslog-ng in syslog format.
+# Dovecot (IMAP/POP3) and Postfix (SMTP)
+# Mailcow writes both via syslog-ng in syslog format.
 # type "syslog" lets crowdsecurity/syslog-logs extract the program name,
 # which the dovecot and postfix parsers filter on.
 source: docker
+docker_host: tcp://socket-proxy:2375
 container_name:
   - mailcowdockerized-dovecot-mailcow-1
-labels:
-  type: syslog
-
----
-# Postfix (SMTP)
-source: docker
-container_name:
   - mailcowdockerized-postfix-mailcow-1
 labels:
   type: syslog
 
 ---
-# Rspamd (spam filter)
-# Note: No official CrowdSec parser exists for Rspamd.
-# These logs will appear as "unparsed" in metrics — this is expected.
-# Kept here for future parser support and log visibility.
+# netfilter-mailcow (Mailcow's built-in ban engine)
+# Its ban lines cover logins CrowdSec has no parser for:
+# Mailcow UI, SOGo and Rspamd UI. Guezli/mailcow-f2b-bans parses them,
+# Guezli/mailcow-f2b-feed turns each ban into a CrowdSec decision.
 source: docker
+docker_host: tcp://socket-proxy:2375
 container_name:
-  - mailcowdockerized-rspamd-mailcow-1
+  - mailcowdockerized-netfilter-mailcow-1
 labels:
-  type: rspamd
-
----
-# SOGo (groupware/webmail)
-# Note: No official CrowdSec parser exists for SOGo.
-# Same as Rspamd — kept for completeness, logs will be unparsed.
-source: docker
-container_name:
-  - mailcowdockerized-sogo-mailcow-1
-labels:
-  type: sogo
+  type: mailcow-f2b
 
 ---
 # SSH auth logs

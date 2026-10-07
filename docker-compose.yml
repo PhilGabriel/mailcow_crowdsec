@@ -1,10 +1,43 @@
 services:
+  # Read-only filter in front of the Docker socket. CrowdSec only needs
+  # to list containers, read their logs and follow events. Direct socket
+  # access would equal root on the host, even with :ro.
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:3.4.6
+    container_name: crowdsec-socket-proxy
+    restart: always
+    environment:
+      CONTAINERS: 1
+      ALLOW_LOGS: 1
+      EVENTS: 1
+      INFO: 1
+      PING: 1
+      VERSION: 1
+      POST: 0
+      # Listen on IPv4 only. The proxy is reachable only on the internal
+      # network, and hosts with IPv6 disabled would crash-loop otherwise.
+      DISABLE_IPV6: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - socket-proxy
+    security_opt:
+      - no-new-privileges:true
+
   crowdsec:
     image: crowdsecurity/crowdsec:v1.8.1
     container_name: crowdsec-mailcow
     restart: always
+    depends_on:
+      - socket-proxy
     environment:
       COLLECTIONS: "crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/dovecot crowdsecurity/postfix crowdsecurity/sshd"
+      # Turns netfilter-mailcow bans (Mailcow UI, SOGo, Rspamd UI logins) into CrowdSec decisions
+      PARSERS: "Guezli/mailcow-f2b-bans"
+      SCENARIOS: "Guezli/mailcow-f2b-feed"
       # Optional: enroll with CrowdSec Central API
       # ENROLL_KEY: "${CROWDSEC_ENROLL_KEY}"
       # ENROLL_INSTANCE_NAME: "${CROWDSEC_INSTANCE_NAME}"
@@ -14,8 +47,6 @@ services:
     volumes:
       - crowdsec-db:/var/lib/crowdsec/data/
       - crowdsec-config:/etc/crowdsec/
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       # Long syntax: fail if auth.log is missing instead of
       # silently creating a directory at that path on the host
       - type: bind
@@ -26,8 +57,8 @@ services:
           create_host_path: false
       - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
     networks:
-      - crowdsec-net
-      - mailcow-network
+      - default
+      - socket-proxy
     ports:
       - "127.0.0.1:8082:8080"
     healthcheck:
@@ -45,11 +76,9 @@ services:
       - no-new-privileges:true
 
 networks:
-  crowdsec-net:
-    driver: bridge
-  mailcow-network:
-    external: true
-    name: mailcowdockerized_mailcow-network
+  # No outside access: only CrowdSec talks to the proxy
+  socket-proxy:
+    internal: true
 
 volumes:
   crowdsec-db:

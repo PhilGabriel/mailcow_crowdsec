@@ -1,0 +1,25 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck crowdsec.sh tests/run.sh
+      - name: compose config
+        run: docker compose config -q
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: auth.log for the bind mount
+        run: sudo touch /var/log/auth.log
+      - name: CrowdSec detects attacks in Mailcow logs
+        run: ./tests/run.sh

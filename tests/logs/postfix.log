@@ -1,0 +1,7 @@
+May 11 04:02:31 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:32 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:33 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:34 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:35 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:36 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure
+May 11 04:02:37 mail postfix/smtpd[26897]: warning: unknown[198.51.100.10]: SASL LOGIN authentication failed: authentication failure

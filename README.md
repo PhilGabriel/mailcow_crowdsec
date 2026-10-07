@@ -32,8 +32,8 @@ CrowdSec monitors your Mailcow logs in real time, detects brute-force attacks, s
 ## How it works
 
 ```
-Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
-         │  logs via Docker socket
+Mailcow Containers (Postfix, Dovecot, Nginx, netfilter)
+         │  logs via read-only socket proxy
          ▼
   ┌─────────────────┐        ┌──────────────────────────┐
   │   CrowdSec      │◄──────►│  CrowdSec Central API    │
@@ -48,6 +48,7 @@ Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
   └─────────────────┘
 ```
 
+- **Socket proxy (Docker)** gives CrowdSec read access to container logs only. Direct Docker socket access would equal root on the host.
 - **CrowdSec (Docker)** reads container logs, detects attacks, serves ban decisions via LAPI
 - **Firewall Bouncer (host)** is a systemd service that queries the LAPI and manages iptables/nftables rules
 - **Community Blocklist** automatically pulls known-bad IPs from the CrowdSec network
@@ -58,14 +59,17 @@ Mailcow Containers (Postfix, Dovecot, Nginx, Rspamd, SOGo)
 
 ## Features
 
-- ✅ Monitors all Mailcow services: Postfix, Dovecot, Nginx, Rspamd, SOGo
+- ✅ Monitors Postfix, Dovecot and Nginx directly
+- ✅ Takes over netfilter-mailcow bans (Mailcow UI, SOGo, Rspamd UI logins)
 - ✅ SSH brute-force protection included
 - ✅ Community threat intelligence (shared blocklist)
 - ✅ Blocks at iptables/nftables level — traffic never reaches your services
 - ✅ Supports both iptables and nftables
 - ✅ IP whitelisting for trusted networks
 - ✅ LAPI healthcheck and logging limits built in
-- ✅ Helper script for common operations
+- ✅ Helper script for common operations, incl. one-command bouncer setup
+- ✅ Docker socket behind a read-only proxy
+- ✅ CI integration test against real CrowdSec
 - ✅ Optional: web dashboard via [app.crowdsec.net](https://app.crowdsec.net)
 - ✅ Zero changes to Mailcow itself
 
@@ -85,13 +89,9 @@ docker compose up -d
 curl -s https://install.crowdsec.net | sh
 apt install crowdsec-firewall-bouncer-iptables
 
-# Generate API key and configure bouncer
-docker exec crowdsec-mailcow cscli bouncers add firewall-bouncer
-# → Paste the key into /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
-# → Set api_url: http://127.0.0.1:8082/
-# → Add DOCKER-USER to iptables_chains, otherwise bans do not block mail ports
-
-systemctl enable --now crowdsec-firewall-bouncer
+# Register the bouncer, write its config (incl. DOCKER-USER chain), restart it
+./crowdsec.sh setup-bouncer
+systemctl enable crowdsec-firewall-bouncer
 
 # Check status
 ./crowdsec.sh status
@@ -114,6 +114,7 @@ systemctl enable --now crowdsec-firewall-bouncer
 ./crowdsec.sh update      # Update hub components
 ./crowdsec.sh logs        # Follow CrowdSec logs
 ./crowdsec.sh health      # Check LAPI, CAPI, and bouncer
+./crowdsec.sh setup-bouncer  # Register host bouncer and write its config
 ```
 
 ---
@@ -122,7 +123,7 @@ systemctl enable --now crowdsec-firewall-bouncer
 
 ```
 mailcow_crowdsec/
-├── docker-compose.yml      # CrowdSec container (LAPI + log processor)
+├── docker-compose.yml      # CrowdSec + read-only Docker socket proxy
 ├── acquis.yaml             # Log sources (Mailcow containers + SSH)
 ├── crowdsec.sh             # Helper script for common operations
 ├── .env.example            # Environment variables
@@ -130,6 +131,8 @@ mailcow_crowdsec/
 ├── README.md               # This file
 ├── INSTALL.md              # Full installation guide (incl. uninstall)
 ├── TROUBLESHOOTING.md      # Common problems and solutions
+├── tests/                  # Integration test (run.sh + sample logs)
+├── .github/workflows/      # CI: shellcheck, compose config, integration test
 └── LICENSE                 # MIT
 ```
 
@@ -143,7 +146,6 @@ mailcow_crowdsec/
 | Docker | 20.10+ |
 | Docker Compose | v2 (plugin) |
 | Mailcow | Running via the official `docker-compose.yml` |
-| Mailcow network | `mailcowdockerized_mailcow-network` (default) |
 | Root access | Required for firewall bouncer installation |
 
 ---
