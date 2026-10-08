@@ -1,0 +1,22 @@
+name: Accessibility barrier
+description: Something in the docs or in crowdsec.sh is hard to use with your setup.
+labels: [accessibility]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: File or command
+      placeholder: INSTALL.md, section "Whitelisting"
+    validations:
+      required: true
+  - type: input
+    id: tech
+    attributes:
+      label: Assistive technology and environment
+      placeholder: NVDA 2026.1, Firefox, GitHub web view
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What blocked you?
+    validations:
+      required: true

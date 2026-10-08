@@ -131,8 +131,13 @@ mailcow_crowdsec/
 ├── README.md               # This file
 ├── INSTALL.md              # Full installation guide (incl. uninstall)
 ├── TROUBLESHOOTING.md      # Common problems and solutions
+├── CONTRIBUTING.md         # Checks and rules for pull requests
+├── SECURITY.md             # Supported versions, private vulnerability reports
+├── CODE_OF_CONDUCT.md      # Contributor Covenant 2.1
+├── ACCESSIBILITY.md        # Accessibility statement
 ├── tests/                  # Integration test (run.sh + sample logs)
 ├── .github/workflows/      # CI: shellcheck, compose config, integration test
+├── .github/ISSUE_TEMPLATE/ # Bug, feature and accessibility forms
 └── LICENSE                 # MIT
 ```
 

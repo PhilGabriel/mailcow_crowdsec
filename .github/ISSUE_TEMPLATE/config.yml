@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/PhilGabriel/mailcow_crowdsec/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue.
+  - name: Mailcow problem
+    url: https://github.com/mailcow/mailcow-dockerized/issues
+    about: Problems in Mailcow itself, unrelated to CrowdSec.
+  - name: CrowdSec engine or hub item
+    url: https://github.com/crowdsecurity/crowdsec/issues
+    about: Bugs in CrowdSec, its bouncers or hub parsers.

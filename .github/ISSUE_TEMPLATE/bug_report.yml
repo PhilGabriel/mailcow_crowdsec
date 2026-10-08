@@ -1,0 +1,59 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [TROUBLESHOOTING.md](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md) first.
+        Remove real IP addresses, domains and mail addresses from all output.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release or commit of this repository.
+      placeholder: 0.2.0-alpha
+    validations:
+      required: true
+  - type: dropdown
+    id: firewall
+    attributes:
+      label: Firewall bouncer
+      options:
+        - iptables
+        - nftables
+        - not installed
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and Docker version
+      placeholder: Debian 12, Docker 27.3, Compose v2.29
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: Output of ./crowdsec.sh health
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: For example `docker logs crowdsec-mailcow --tail 100` or `journalctl -u crowdsec-firewall-bouncer`.
+      render: text
