@@ -49,7 +49,9 @@ sudo ./tests/run.sh
 - Keep one topic per pull request.
 - Write docs and commit messages in English.
 - Update `CHANGELOG.md` under the next version. Use the sections Fixed, Security, Added, Removed and Changed.
-- Update `README.md`, `INSTALL.md` or `TROUBLESHOOTING.md` when behaviour changes.
+- Update `README.md`, `INSTALL.md`, `TROUBLESHOOTING.md` or the pages in `wiki/` when behaviour changes.
+
+The GitHub wiki is generated from `wiki/` on every merge to `main`. Edits made directly in the wiki web editor are overwritten.
 - Describe upgrade steps if existing installations need manual action.
 
 By contributing you agree that your work is licensed under the [MIT License](LICENSE).

@@ -136,7 +136,8 @@ mailcow_crowdsec/
 ├── CODE_OF_CONDUCT.md      # Contributor Covenant 2.1
 ├── ACCESSIBILITY.md        # Accessibility statement
 ├── tests/                  # Integration test (run.sh + sample logs)
-├── .github/workflows/      # CI: shellcheck, compose config, integration test
+├── wiki/                   # Wiki pages, synced to the GitHub wiki on merge
+├── .github/workflows/      # CI: shellcheck, compose config, integration test, wiki sync
 ├── .github/ISSUE_TEMPLATE/ # Bug, feature and accessibility forms
 └── LICENSE                 # MIT
 ```
