@@ -3,7 +3,7 @@ services:
   # to list containers, read their logs and follow events. Direct socket
   # access would equal root on the host, even with :ro.
   socket-proxy:
-    image: lscr.io/linuxserver/socket-proxy:3.4.7
+    image: lscr.io/linuxserver/socket-proxy:3.4.7@sha256:4e5e59efd3338205561c54262581992036e5a36ccca97d487b1d4ec41f9adc58
     container_name: crowdsec-socket-proxy
     restart: always
     environment:
@@ -28,7 +28,7 @@ services:
       - no-new-privileges:true
 
   crowdsec:
-    image: crowdsecurity/crowdsec:v1.8.1
+    image: crowdsecurity/crowdsec:v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a
     container_name: crowdsec-mailcow
     restart: always
     depends_on:
