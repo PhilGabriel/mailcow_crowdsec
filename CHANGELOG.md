@@ -11,7 +11,6 @@
 ### Security
 
 - Images are pinned by digest (`tag@sha256:…`).
-- The CrowdSec container drops all Linux capabilities.
 
 ### Changed
 
