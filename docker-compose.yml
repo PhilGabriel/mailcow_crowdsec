@@ -72,6 +72,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
 
