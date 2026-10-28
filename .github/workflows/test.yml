@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shellcheck
-        run: shellcheck crowdsec.sh tests/run.sh tests/enforcement.sh
+        run: shellcheck crowdsec.sh tests/run.sh tests/enforcement.sh tests/upgrade.sh
       - name: compose config
         run: docker compose config -q
 
@@ -38,3 +38,12 @@ jobs:
           sudo apt-get install -y crowdsec-firewall-bouncer-nftables
       - name: A ban becomes a firewall rule that covers forwarded traffic
         run: sudo ./tests/enforcement.sh
+
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Upgrade from the last release on the same volumes
+        run: sudo ./tests/upgrade.sh v0.2.1-alpha
