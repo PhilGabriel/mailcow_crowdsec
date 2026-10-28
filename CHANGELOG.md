@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-beta (2026-10-28)
+
+First beta. What changed since 0.2.1-alpha is below. Known gaps are listed in the README under "Known limitations".
 
 ### Added
 
 - `tests/enforcement.sh` and a CI job: a ban decision must become an nftables rule that includes the `forward` hook, and must disappear when the decision is deleted. It also exercises `setup-bouncer`.
+- `tests/enforcement.sh` runs for both the nftables and the iptables bouncer (`DOCKER-USER` chain).
+- `tests/upgrade.sh` and a CI job: start the last release, create a ban and files, switch to the current compose file on the same volumes.
 - Dependabot for `docker-compose` and GitHub Actions.
 - README section "Verified with".
 

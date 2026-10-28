@@ -2,11 +2,12 @@
 
 ## Supported versions
 
-The project is alpha. Only the latest release gets fixes.
+The project is beta. Only the latest release gets fixes.
 
 | Version | Supported |
 |---|---|
-| 0.2.x-alpha | Yes |
+| 0.3.x-beta | Yes |
+| 0.2.x-alpha | No |
 | 0.1.0-alpha | No |
 
 ## Reporting a vulnerability
