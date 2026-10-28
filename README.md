@@ -1,12 +1,12 @@
 # CrowdSec for Mailcow
 
-> ⚠️ **ALPHA — EXPERIMENTAL SOFTWARE**
+> ⚠️ **BETA**
 >
-> This project is in early development. It has been tested in a specific production environment but is **not yet considered stable for general use**. Configuration, file structure, and behaviour may change between versions without notice. Use at your own risk — always test in a non-production environment first and keep backups of your Mailcow data.
+> The core features are covered by CI: log detection, a ban becoming a firewall rule (nftables and iptables) and the upgrade from the last release. It runs in one production environment. Few other setups are verified so far, see [Known limitations](#known-limitations). Behaviour can still change between versions; the [Changelog](CHANGELOG.md) lists every change. Test in a non-production environment first and keep backups of your Mailcow data.
 
 ---
 
-**Version:** 0.2.1-alpha · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
+**Version:** 0.3.0-beta · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
 
 > **CrowdSec protection for Mailcow**, running alongside Mailcow's built-in ban engine (netfilter-mailcow) — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
@@ -150,10 +150,19 @@ mailcow_crowdsec/
 |------|---------|-----|
 | Mailcow | 2026-10 (container images nginx 1.30, dovecot 2.3.21, postfix 3.10, netfilter 1.64) | In production since 2026-10; log parsers hit 99% of nginx and 73% of dovecot lines, netfilter bans 100% |
 | CrowdSec / socket proxy | v1.8.1 / 3.4.7 (pinned by digest) | CI on every pull request |
-| Ban reaches the firewall | nftables bouncer, `input` and `forward` hook | CI (`tests/enforcement.sh`) |
-| iptables bouncer (`DOCKER-USER`) | not covered by CI | Manual only. Reports welcome |
+| Ban reaches the firewall | crowdsec-firewall-bouncer-nftables, `input` and `forward` hook | CI (`tests/enforcement.sh nftables`) |
+| iptables bouncer (`DOCKER-USER`) | crowdsec-firewall-bouncer-iptables | CI (`tests/enforcement.sh iptables`) |
+| Upgrade | from v0.2.1-alpha on the same volumes | CI (`tests/upgrade.sh`) |
 
 Mailcow changes its log format now and then. If detection stops after a Mailcow update, see [Troubleshooting](TROUBLESHOOTING.md).
+
+## Known limitations
+
+- The install guide has not been replayed end to end on a fresh machine ([#10](https://github.com/PhilGabriel/mailcow_crowdsec/issues/10)). `INSTALL.md`, the Quick Start here and the wiki overlap.
+- Only the upgrade from v0.2.1-alpha is tested ([#12](https://github.com/PhilGabriel/mailcow_crowdsec/issues/12)); 0.1.0-alpha has a different layout and a manual upgrade guide.
+- The parser and scenario `Guezli/mailcow-f2b-*` come from the CrowdSec hub and are not pinned ([#14](https://github.com/PhilGabriel/mailcow_crowdsec/issues/14)).
+- Few setups are verified so far ([#13](https://github.com/PhilGabriel/mailcow_crowdsec/issues/13)). Mailcow changes its log format now and then.
+- The CrowdSec container runs with the default Linux capabilities. Dropping them works in the tests but breaks files owned by another uid.
 
 ## Requirements
 

@@ -12,7 +12,7 @@ body:
     attributes:
       label: Version
       description: Release or commit of this repository.
-      placeholder: 0.2.0-alpha
+      placeholder: 0.3.0-beta
     validations:
       required: true
   - type: dropdown
