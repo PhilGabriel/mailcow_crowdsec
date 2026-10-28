@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- `tests/enforcement.sh` and a CI job: a ban decision must become an nftables rule that includes the `forward` hook, and must disappear when the decision is deleted. It also exercises `setup-bouncer`.
+- Dependabot for `docker-compose` and GitHub Actions.
+- README section "Verified with".
+
+### Security
+
+- Images are pinned by digest (`tag@sha256:…`).
+- The CrowdSec container drops all Linux capabilities.
+
 ### Changed
 
 - Docs: section for hosts that already run CrowdSec (Requirements wiki page), and a warning in CONTRIBUTING.md not to run `tests/run.sh` on a Mailcow host.

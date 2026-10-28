@@ -144,6 +144,17 @@ mailcow_crowdsec/
 
 ---
 
+## Verified with
+
+| What | Version | How |
+|------|---------|-----|
+| Mailcow | 2026-10 (container images nginx 1.30, dovecot 2.3.21, postfix 3.10, netfilter 1.64) | In production since 2026-10; log parsers hit 99% of nginx and 73% of dovecot lines, netfilter bans 100% |
+| CrowdSec / socket proxy | v1.8.1 / 3.4.7 (pinned by digest) | CI on every pull request |
+| Ban reaches the firewall | nftables bouncer, `input` and `forward` hook | CI (`tests/enforcement.sh`) |
+| iptables bouncer (`DOCKER-USER`) | not covered by CI | Manual only. Reports welcome |
+
+Mailcow changes its log format now and then. If detection stops after a Mailcow update, see [Troubleshooting](TROUBLESHOOTING.md).
+
 ## Requirements
 
 | Requirement | Details |
