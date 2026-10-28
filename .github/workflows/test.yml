@@ -29,15 +29,19 @@ jobs:
 
   enforcement:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [nftables, iptables]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install the nftables firewall bouncer
+      - name: Install the ${{ matrix.mode }} firewall bouncer
         run: |
           curl -fsSL https://install.crowdsec.net -o /tmp/install-crowdsec.sh
           sudo sh /tmp/install-crowdsec.sh
-          sudo apt-get install -y crowdsec-firewall-bouncer-nftables
+          sudo apt-get install -y crowdsec-firewall-bouncer-${{ matrix.mode }}
       - name: A ban becomes a firewall rule that covers forwarded traffic
-        run: sudo ./tests/enforcement.sh
+        run: sudo ./tests/enforcement.sh ${{ matrix.mode }}
 
   upgrade:
     runs-on: ubuntu-latest
