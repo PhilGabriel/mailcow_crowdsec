@@ -1,10 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.1-alpha (2026-10-28)
 
 ### Changed
 
 - Socket proxy image 3.4.6 → 3.4.7.
+
+### Security
+
+- `crowdsec.sh setup-bouncer` kept the backup of the bouncer config (`.bak`, contains the previous API key) with default permissions. It now keeps the original mode (`cp -p`).
+- `crowdsec.sh unban` rejects arguments that are not an IP address or range. `setup-bouncer` rejects a bouncer key with unexpected characters before it writes the config.
 
 ### Fixed
 

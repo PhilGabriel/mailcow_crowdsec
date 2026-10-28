@@ -6,7 +6,7 @@
 
 ---
 
-**Version:** 0.2.0-alpha · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
+**Version:** 0.2.1-alpha · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
 
 > **CrowdSec protection for Mailcow**, running alongside Mailcow's built-in ban engine (netfilter-mailcow) — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
