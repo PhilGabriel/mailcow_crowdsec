@@ -37,6 +37,8 @@ docker compose config -q
 sudo ./tests/run.sh
 ```
 
+> **Never run `tests/run.sh` on a machine that runs Mailcow or CrowdSec.** The test creates dummy containers with the real Mailcow container names and removes them with `docker rm -f` on exit. Since 0.2.1 it aborts if those names already exist, but use CI or a throwaway VM.
+
 ## Adding a log source or parser
 
 1. Add the source to `acquis.yaml`.

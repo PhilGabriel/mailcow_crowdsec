@@ -38,6 +38,16 @@ ls -l /var/log/auth.log || apt install rsyslog
 
 An empty file created with `touch` does not help: nothing writes SSH logins into it. To skip SSH protection, see [Missing log files](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#missing-log-files).
 
+## CrowdSec already installed on the host
+
+You can run this stack next to a CrowdSec package on the host. There is no port clash: the host package listens on `127.0.0.1:8080`, the container publishes its LAPI on `127.0.0.1:8082`. The two instances are independent and do not share decisions.
+
+A host firewall bouncer talks to exactly one LAPI:
+
+- `./crowdsec.sh setup-bouncer` registers the bouncer at the **container** and rewrites `api_url` and `api_key` in `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml`. An existing bouncer is repointed away from the host instance (backup: `.bak`).
+- To keep the bouncer on the host instance, do not run `setup-bouncer`. Bans from the container are then not enforced by the firewall.
+- `crowdsec.sh health` checks the container LAPI (port 8082) and the container's bouncer list. With the bouncer on the host instance, it can report problems that do not exist.
+
 ## Reverse proxy
 
 If a reverse proxy sits in front of Mailcow, read [Mailcow behind a reverse proxy](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#mailcow-behind-a-reverse-proxy) first. Otherwise CrowdSec may ban the proxy.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Docs: section for hosts that already run CrowdSec (Requirements wiki page), and a warning in CONTRIBUTING.md not to run `tests/run.sh` on a Mailcow host.
+
 ## 0.2.1-alpha (2026-10-28)
 
 ### Changed
