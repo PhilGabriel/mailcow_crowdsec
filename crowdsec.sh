@@ -90,6 +90,10 @@ cmd_unban() {
     echo "Usage: ./crowdsec.sh unban <IP>"
     exit 1
   fi
+  if [[ ! "$ip" =~ ^[0-9a-fA-F:./]+$ ]]; then
+    echo "Error: '$ip' is not an IP address or range."
+    exit 1
+  fi
   docker exec "$CONTAINER" cscli decisions delete --ip "$ip"
   echo "Ban removed for $ip"
 }
@@ -179,8 +183,14 @@ cmd_setup_bouncer() {
   fi
   local key
   key=$(docker exec "$CONTAINER" cscli bouncers add "$BOUNCER_NAME" -o raw)
+  # The key goes into a sed replacement: refuse anything that could break out of it
+  if [[ ! "$key" =~ ^[A-Za-z0-9+/=_-]+$ ]]; then
+    echo "Error: unexpected bouncer key format."
+    exit 1
+  fi
 
-  cp "$BOUNCER_CONFIG" "$BOUNCER_CONFIG.bak"
+  # -p keeps the restrictive mode: the backup holds the previous API key
+  cp -p "$BOUNCER_CONFIG" "$BOUNCER_CONFIG.bak"
   sed -i -e "s|^api_url:.*|api_url: http://127.0.0.1:8082/|" \
          -e "s|^api_key:.*|api_key: $key|" "$BOUNCER_CONFIG"
 

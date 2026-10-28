@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1-alpha (2026-10-28)
+
+### Changed
+
+- Socket proxy image 3.4.6 → 3.4.7.
+
+### Security
+
+- `crowdsec.sh setup-bouncer` kept the backup of the bouncer config (`.bak`, contains the previous API key) with default permissions. It now keeps the original mode (`cp -p`).
+- `crowdsec.sh unban` rejects arguments that are not an IP address or range. `setup-bouncer` rejects a bouncer key with unexpected characters before it writes the config.
+
+### Fixed
+
+- `tests/run.sh` refuses to run if containers with the names it uses already exist. The test creates dummy containers named like the real Mailcow ones and removes them with `docker rm -f` on exit, which would delete a production Mailcow stack.
+
 ## 0.2.0-alpha (2026-10-07)
 
 ### Fixed
