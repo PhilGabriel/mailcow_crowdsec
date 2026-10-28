@@ -3,7 +3,7 @@ services:
   # to list containers, read their logs and follow events. Direct socket
   # access would equal root on the host, even with :ro.
   socket-proxy:
-    image: lscr.io/linuxserver/socket-proxy:3.4.6
+    image: lscr.io/linuxserver/socket-proxy:3.4.7
     container_name: crowdsec-socket-proxy
     restart: always
     environment:

@@ -14,7 +14,7 @@ docker compose up -d
 sudo ./crowdsec.sh health
 ```
 
-`docker-compose.yml` pins both images: `crowdsecurity/crowdsec:v1.8.1` and `lscr.io/linuxserver/socket-proxy:3.4.6`. New versions arrive through `git pull`. Read the [Changelog](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/CHANGELOG.md) before you update.
+`docker-compose.yml` pins both images: `crowdsecurity/crowdsec:v1.8.1` and `lscr.io/linuxserver/socket-proxy:3.4.7`. New versions arrive through `git pull`. Read the [Changelog](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/CHANGELOG.md) before you update.
 
 ## Upgrade from 0.1.0-alpha
 

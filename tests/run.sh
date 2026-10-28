@@ -20,6 +20,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The dummies reuse the real Mailcow container names and cleanup() force-removes them.
+for name in "${!DUMMIES[@]}" crowdsec-mailcow crowdsec-socket-proxy; do
+  if docker inspect "$name" >/dev/null 2>&1; then
+    echo "FAIL: container '$name' already exists. Run this test only on a machine without Mailcow/CrowdSec (CI or a throwaway VM)."
+    exit 1
+  fi
+done
+
 if [[ ! -f /var/log/auth.log ]]; then
   echo "FAIL: /var/log/auth.log missing (create it with: touch /var/log/auth.log)"
   exit 1

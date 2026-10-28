@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Socket proxy image 3.4.6 → 3.4.7.
+
+### Fixed
+
+- `tests/run.sh` refuses to run if containers with the names it uses already exist. The test creates dummy containers named like the real Mailcow ones and removes them with `docker rm -f` on exit, which would delete a production Mailcow stack.
+
 ## 0.2.0-alpha (2026-10-07)
 
 ### Fixed
