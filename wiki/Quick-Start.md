@@ -29,4 +29,6 @@ systemctl enable crowdsec-firewall-bouncer
 ./crowdsec.sh health
 ```
 
+If the host already runs CrowdSec, replace `setup-bouncer` with `setup-bouncer --second` (nftables only), see [[Second Bouncer]].
+
 Run the commands as root. Mailcow itself needs no change.

@@ -22,6 +22,7 @@ CrowdSec reads the Mailcow logs through a read-only Docker socket proxy, detects
 - [[Whitelist Setup]]: protect your own IPs
 - [[CrowdSec Central API]]: optional web dashboard
 - [[nftables vs iptables]]: choose the bouncer package
+- [[Second Bouncer]]: host already runs CrowdSec, enforce this container's bans too
 
 ### Operations
 - [[Helper Script]]: `crowdsec.sh` command reference

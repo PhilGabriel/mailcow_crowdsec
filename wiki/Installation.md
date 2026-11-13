@@ -15,6 +15,7 @@ The full guide with explanations is [INSTALL.md](https://github.com/PhilGabriel/
 5. **Add the CrowdSec apt repository**: `curl -s https://install.crowdsec.net | sh`
 6. **Install the bouncer**: `apt install crowdsec-firewall-bouncer-iptables` (or `-nftables`, see [[nftables vs iptables]])
 7. **Connect the bouncer**: `sudo ./crowdsec.sh setup-bouncer`
+   **Host already runs CrowdSec?** Use `sudo ./crowdsec.sh setup-bouncer --second` instead, see [[Second Bouncer]].
 8. **Enable at boot**: `systemctl enable crowdsec-firewall-bouncer`
 9. **Verify**: `sudo ./crowdsec.sh health`
 

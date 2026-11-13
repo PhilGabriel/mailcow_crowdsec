@@ -13,6 +13,14 @@ systemctl disable --now crowdsec-firewall-bouncer
 apt remove crowdsec-firewall-bouncer-iptables   # or -nftables
 ```
 
+If you used `setup-bouncer --second`, also remove the second instance:
+
+```bash
+systemctl disable --now crowdsec-firewall-bouncer-mailcow
+rm /etc/systemd/system/crowdsec-firewall-bouncer-mailcow.service /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-mailcow.yaml*
+systemctl daemon-reload
+```
+
 ## 2. Remove CrowdSec and the socket proxy
 
 ```bash

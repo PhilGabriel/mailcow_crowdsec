@@ -40,7 +40,7 @@ done
 docker compose start crowdsec
 ```
 
-If you restored the database, the old bouncer key is valid again. Put back the matching bouncer config, or run `sudo ./crowdsec.sh setup-bouncer` for a new key.
+If you restored the database, the old bouncer key is valid again. Put back the matching bouncer config, or run `sudo ./crowdsec.sh setup-bouncer` (`--second` for the second bouncer) for a new key.
 
 ## Warnings
 

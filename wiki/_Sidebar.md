@@ -12,6 +12,7 @@
 - [[Whitelist Setup]]
 - [[CrowdSec Central API]]
 - [[nftables vs iptables]]
+- [[Second Bouncer]]
 
 ### Usage
 - [[Helper Script]]
