@@ -145,7 +145,9 @@ The command:
 3. adds `DOCKER-USER` to `iptables_chains` in iptables mode,
 4. restarts the bouncer.
 
-Running it again replaces the key. Then enable the service at boot:
+Running it again replaces the key.
+
+> **Host already runs CrowdSec?** Plain `setup-bouncer` would repoint the existing bouncer from the host LAPI to this container. Use `sudo ./crowdsec.sh setup-bouncer --second` instead (nftables bouncer only). It adds a second bouncer, `crowdsec-firewall-bouncer-mailcow`, with its own nftables tables and systemd unit, and leaves the first one untouched. Details: [Second Bouncer](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/wiki/Second-Bouncer.md). Then enable the service at boot:
 
 ```bash
 systemctl enable crowdsec-firewall-bouncer

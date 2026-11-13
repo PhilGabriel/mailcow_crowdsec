@@ -19,6 +19,7 @@ sudo ./crowdsec.sh health
 | Sources read, but 0 lines for one service | Container names differ | [[Acquis Configuration]] |
 | Postfix lines unparsed | Old `acquis.yaml` with `type: postfix` | Use `type: syslog`, see [[Updating]] |
 | Bouncer `unauthorized` / `403` | Wrong or old API key | `sudo ./crowdsec.sh setup-bouncer` |
+| Container bans (postfix-spam, ...) never block, host runs its own CrowdSec | Bouncer is attached to the host LAPI | `sudo ./crowdsec.sh setup-bouncer --second`, see [[Second Bouncer]] |
 | Bouncer `connection refused` | CrowdSec not running or not healthy | `docker compose ps` |
 | No bans | No attack detected yet | `./crowdsec.sh alerts` |
 | Reverse proxy IP banned | Proxy not whitelisted | [Reverse proxy](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#mailcow-behind-a-reverse-proxy) |

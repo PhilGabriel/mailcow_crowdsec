@@ -28,6 +28,8 @@ Mailcow's ports are published by Docker, so mail traffic passes `FORWARD`, not `
 | iptables | `INPUT` | add `DOCKER-USER` to `iptables_chains` (`setup-bouncer` does it) |
 | nftables | `input`, `forward` | none |
 
+`setup-bouncer --second` (host that already runs CrowdSec) works with the nftables package only, see [[Second Bouncer]].
+
 ## Switching packages
 
 ```bash

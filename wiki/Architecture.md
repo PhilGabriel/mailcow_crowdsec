@@ -45,7 +45,7 @@ CrowdSec is **not** on the Mailcow network. It needs no access to Redis, MySQL o
 
 | Port | Binding | Purpose |
 |------|---------|---------|
-| 8082 | `127.0.0.1` only | LAPI for the host bouncer |
+| 8082 | `127.0.0.1` only | LAPI for the host bouncer (with `--second`: for the second bouncer, see [[Second Bouncer]]) |
 | 8080 | inside the container | LAPI |
 | 2375 | `socket-proxy` network only | Docker API through the proxy |
 

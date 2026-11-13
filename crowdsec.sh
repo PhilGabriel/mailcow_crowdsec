@@ -7,6 +7,10 @@ set -euo pipefail
 CONTAINER="crowdsec-mailcow"
 BOUNCER_NAME="firewall-bouncer"
 BOUNCER_CONFIG="/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml"
+# Second instance for hosts that already run CrowdSec (see "setup-bouncer --second")
+SECOND_NAME="firewall-bouncer-mailcow"
+SECOND_CONFIG="/etc/crowdsec/bouncers/crowdsec-firewall-bouncer-mailcow.yaml"
+SECOND_UNIT="/etc/systemd/system/crowdsec-firewall-bouncer-mailcow.service"
 
 # docker compose needs the project directory, wherever the script is called from
 cd "$(dirname "$(readlink -f "$0")")"
@@ -28,6 +32,10 @@ Commands:
   logs        Follow CrowdSec logs in real time
   health      Check LAPI, CAPI, and bouncer connectivity
   setup-bouncer  Register the host firewall bouncer and write its config (root)
+  setup-bouncer --second
+              For hosts that already run CrowdSec: add a second bouncer instance (own
+              nftables tables, own systemd unit) that enforces this container's bans and
+              leaves the existing bouncer untouched (root, nftables only)
 EOF
 }
 
@@ -49,6 +57,16 @@ cmd_status() {
     echo "● crowdsec-firewall-bouncer: active (running)"
   else
     echo "○ crowdsec-firewall-bouncer: inactive or not installed"
+  fi
+
+  if [[ -f "$SECOND_UNIT" ]]; then
+    echo ""
+    echo "=== Second Firewall Bouncer (host, container LAPI) ==="
+    if systemctl is-active crowdsec-firewall-bouncer-mailcow &>/dev/null; then
+      echo "● crowdsec-firewall-bouncer-mailcow: active (running)"
+    else
+      echo "○ crowdsec-firewall-bouncer-mailcow: inactive"
+    fi
   fi
 
   echo ""
@@ -206,6 +224,81 @@ cmd_setup_bouncer() {
   docker exec "$CONTAINER" cscli bouncers list
 }
 
+# For hosts that already run CrowdSec: the host bouncer talks to the host LAPI, so the bans this
+# container creates (postfix-spam, dovecot, ...) never reach the firewall. A second instance with its
+# own nftables tables closes that gap without touching the first one.
+cmd_setup_second_bouncer() {
+  require_container
+  if [[ $EUID -ne 0 ]]; then
+    echo "Error: run as root (writes $SECOND_CONFIG and a systemd unit)."
+    exit 1
+  fi
+  if [[ ! -f "$BOUNCER_CONFIG" ]] || ! grep -qE "^mode: *nftables" "$BOUNCER_CONFIG"; then
+    echo "Error: --second needs the nftables firewall bouncer ($BOUNCER_CONFIG with 'mode: nftables')."
+    echo "       Without an existing bouncer use plain 'setup-bouncer' instead."
+    exit 1
+  fi
+
+  if docker exec "$CONTAINER" cscli bouncers list -o raw | grep -q "^$SECOND_NAME,"; then
+    echo "Replacing existing bouncer registration '$SECOND_NAME'"
+    docker exec "$CONTAINER" cscli bouncers delete "$SECOND_NAME" &>/dev/null
+  fi
+  local key
+  key=$(docker exec "$CONTAINER" cscli bouncers add "$SECOND_NAME" -o raw)
+  if [[ ! "$key" =~ ^[A-Za-z0-9+/=_-]+$ ]]; then
+    echo "Error: unexpected bouncer key format."
+    exit 1
+  fi
+
+  # Derived from the first bouncer's config: own API, own tables/chains (the nftables backend
+  # deletes tables it does not know on shutdown, so they must not be shared), logs to the journal.
+  # Only decisions detected here are enforced: the community blocklist is already loaded by the
+  # host CrowdSec and would otherwise sit in memory twice.
+  [[ -f "$SECOND_CONFIG" ]] && cp -p "$SECOND_CONFIG" "$SECOND_CONFIG.bak"
+  (
+    umask 077
+    sed -e "s|^api_url:.*|api_url: http://127.0.0.1:8082/|" \
+        -e "s|^api_key:.*|api_key: $key|" \
+        -e "s|^log_mode:.*|log_mode: stdout|" \
+        -e "s|^\( *table:\) crowdsec6\?$|&-mailcow|" \
+        -e "s|^\( *chain:\) crowdsec6\?-chain$|\1 crowdsec-mailcow-chain|" \
+        -e "s|^blacklists_ipv4:.*|blacklists_ipv4: crowdsec-mailcow-blacklists|" \
+        -e "s|^blacklists_ipv6:.*|blacklists_ipv6: crowdsec6-mailcow-blacklists|" \
+        -e "/^prometheus:/,/^[^ #]/ s|enabled: true|enabled: false|" \
+        "$BOUNCER_CONFIG" > "$SECOND_CONFIG"
+    # ipv6 chain needs its own name: the sed above gave both the ipv4 one
+    sed -i "/table: crowdsec6-mailcow/{n;s|chain:.*|chain: crowdsec6-mailcow-chain|}" "$SECOND_CONFIG"
+    printf 'origins:\n  - crowdsec\n  - cscli\n' >> "$SECOND_CONFIG"
+  )
+  if ! /usr/bin/crowdsec-firewall-bouncer -c "$SECOND_CONFIG" -t >/dev/null 2>&1; then
+    echo "Error: generated config is invalid, see: crowdsec-firewall-bouncer -c $SECOND_CONFIG -t"
+    exit 1
+  fi
+
+  cat > "$SECOND_UNIT" <<UNIT
+[Unit]
+Description=Firewall bouncer for the CrowdSec container of Mailcow
+After=network.target docker.service
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/crowdsec-firewall-bouncer -c $SECOND_CONFIG
+ExecStartPre=/usr/bin/crowdsec-firewall-bouncer -c $SECOND_CONFIG -t
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now crowdsec-firewall-bouncer-mailcow
+  sleep 3
+  echo "Updated $SECOND_CONFIG, started crowdsec-firewall-bouncer-mailcow (first bouncer untouched)"
+  docker exec "$CONTAINER" cscli bouncers list
+}
+
 case "${1:-}" in
   status)    cmd_status ;;
   bans)      cmd_bans "${2:-}" ;;
@@ -216,6 +309,6 @@ case "${1:-}" in
   update)    cmd_update ;;
   logs)      cmd_logs ;;
   health)    cmd_health ;;
-  setup-bouncer) cmd_setup_bouncer ;;
+  setup-bouncer) if [[ "${2:-}" == "--second" ]]; then cmd_setup_second_bouncer; else cmd_setup_bouncer; fi ;;
   *)         usage ;;
 esac

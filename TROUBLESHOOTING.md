@@ -183,6 +183,25 @@ systemctl restart crowdsec-firewall-bouncer
 
 ---
 
+## Second bouncer (host already runs CrowdSec)
+
+Used after `sudo ./crowdsec.sh setup-bouncer --second`. Everything works as for the first bouncer, with these names:
+
+```bash
+systemctl status crowdsec-firewall-bouncer-mailcow
+journalctl -u crowdsec-firewall-bouncer-mailcow --no-pager -n 30
+nft list table ip crowdsec-mailcow
+```
+
+| Error | Fix |
+|---|---|
+| `unauthorized` or `403` | `sudo ./crowdsec.sh setup-bouncer --second` (new key) |
+| `generated config is invalid` | `crowdsec-firewall-bouncer -c /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-mailcow.yaml -t` |
+| `--second needs the nftables firewall bouncer` | The first bouncer is missing or uses iptables |
+| Container bans do not appear in `crowdsec-mailcow` | Service not running or container not healthy; the community blocklist is not loaded on purpose (`origins: crowdsec, cscli`) |
+
+---
+
 ## No bans are being created
 
 **Symptom:** CrowdSec runs, logs are being read, but `cscli decisions list` is always empty.

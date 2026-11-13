@@ -2,7 +2,7 @@
 
 > ⚠️ **BETA**
 >
-> The core features are covered by CI: log detection, a ban becoming a firewall rule (nftables and iptables) and the upgrade from the last release. It runs in one production environment. Few other setups are verified so far, see [Known limitations](#known-limitations). Behaviour can still change between versions; the [Changelog](CHANGELOG.md) lists every change. Test in a non-production environment first and keep backups of your Mailcow data.
+> The core features are covered by CI: log detection, a ban becoming a firewall rule (nftables, iptables and the second bouncer) and the upgrade from the last release. It runs in one production environment. Few other setups are verified so far, see [Known limitations](#known-limitations). Behaviour can still change between versions; the [Changelog](CHANGELOG.md) lists every change. Test in a non-production environment first and keep backups of your Mailcow data.
 
 ---
 
@@ -68,6 +68,7 @@ Mailcow Containers (Postfix, Dovecot, Nginx, netfilter)
 - ✅ IP whitelisting for trusted networks
 - ✅ LAPI healthcheck and logging limits built in
 - ✅ Helper script for common operations, incl. one-command bouncer setup
+- ✅ Works next to a CrowdSec already installed on the host (second bouncer, `setup-bouncer --second`)
 - ✅ Docker socket behind a read-only proxy
 - ✅ CI integration test against real CrowdSec
 - ✅ Optional: web dashboard via [app.crowdsec.net](https://app.crowdsec.net)
@@ -115,6 +116,7 @@ systemctl enable crowdsec-firewall-bouncer
 ./crowdsec.sh logs        # Follow CrowdSec logs
 ./crowdsec.sh health      # Check LAPI, CAPI, and bouncer
 ./crowdsec.sh setup-bouncer  # Register host bouncer and write its config
+./crowdsec.sh setup-bouncer --second  # Host already runs CrowdSec: add a second bouncer for this container
 ```
 
 ---
@@ -152,6 +154,7 @@ mailcow_crowdsec/
 | CrowdSec / socket proxy | v1.8.1 / 3.4.7 (pinned by digest) | CI on every pull request |
 | Ban reaches the firewall | crowdsec-firewall-bouncer-nftables, `input` and `forward` hook | CI (`tests/enforcement.sh nftables`) |
 | iptables bouncer (`DOCKER-USER`) | crowdsec-firewall-bouncer-iptables | CI (`tests/enforcement.sh iptables`) |
+| Second bouncer next to a host CrowdSec | crowdsec-firewall-bouncer-nftables, own tables `crowdsec-mailcow`; first bouncer config unchanged | CI (`tests/enforcement.sh second`), production host |
 | Upgrade | from v0.2.1-alpha on the same volumes | CI (`tests/upgrade.sh`) |
 
 Mailcow changes its log format now and then. If detection stops after a Mailcow update, see [Troubleshooting](TROUBLESHOOTING.md).
