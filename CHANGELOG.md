@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `./crowdsec.sh setup-bouncer --second` for hosts that already run CrowdSec: a second firewall bouncer instance (own nftables tables, own systemd unit) that enforces the container's bans and leaves the existing bouncer untouched. Until now, bans from this container (`postfix-spam`, `postscreen-rbl`, ...) were not enforced on such hosts.
+- `crowdsec.sh status` shows the second bouncer.
+- `tests/enforcement.sh second` and a CI matrix entry: the ban must appear in the `crowdsec-mailcow` table with the forward hook, and the first bouncer's config must stay byte-identical.
+
 ## 0.3.0-beta (2026-10-28)
 
 First beta. What changed since 0.2.1-alpha is below. Known gaps are listed in the README under "Known limitations".

@@ -45,7 +45,8 @@ You can run this stack next to a CrowdSec package on the host. There is no port 
 A host firewall bouncer talks to exactly one LAPI:
 
 - `./crowdsec.sh setup-bouncer` registers the bouncer at the **container** and rewrites `api_url` and `api_key` in `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml`. An existing bouncer is repointed away from the host instance (backup: `.bak`).
-- To keep the bouncer on the host instance, do not run `setup-bouncer`. Bans from the container are then not enforced by the firewall.
+- To keep the bouncer on the host instance, do not run plain `setup-bouncer`. Bans from the container are then not enforced by the firewall, unless you add a second bouncer:
+- `./crowdsec.sh setup-bouncer --second` (nftables only) leaves the existing bouncer as it is and starts a second one, `crowdsec-firewall-bouncer-mailcow`, against the container LAPI. It has its own nftables tables (`crowdsec-mailcow`, `crowdsec6-mailcow`), its own systemd unit and logs to the journal. It enforces only decisions the container detected (origins `crowdsec` and `cscli`), not the community blocklist, which the host instance already loads. Remove it with `systemctl disable --now crowdsec-firewall-bouncer-mailcow` and delete the unit and config file.
 - `crowdsec.sh health` checks the container LAPI (port 8082) and the container's bouncer list. With the bouncer on the host instance, it can report problems that do not exist.
 
 ## Reverse proxy

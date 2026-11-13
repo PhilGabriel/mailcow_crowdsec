@@ -115,6 +115,7 @@ systemctl enable crowdsec-firewall-bouncer
 ./crowdsec.sh logs        # Follow CrowdSec logs
 ./crowdsec.sh health      # Check LAPI, CAPI, and bouncer
 ./crowdsec.sh setup-bouncer  # Register host bouncer and write its config
+./crowdsec.sh setup-bouncer --second  # Host already runs CrowdSec: add a second bouncer for this container
 ```
 
 ---
