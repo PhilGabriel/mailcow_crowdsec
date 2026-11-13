@@ -84,25 +84,24 @@ docker logs crowdsec-mailcow 2>&1 | tail -30
 
 | Error in logs | Fix |
 |---|---|
-| `no such file or directory: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | `acquis.yaml: no such file or directory` | Run `docker compose` from inside the cloned repo directory |
-| `bind source path does not exist: /var/log/auth.log` | See [Missing log files](#missing-log-files) |
 | Permission denied on Docker socket | CrowdSec needs to run as root or have Docker socket access |
 
 ---
 
 ## Missing log files
 
-**Symptom:**
+**Symptom:** SSH brute force is not detected. `./crowdsec.sh health` reports `/var/log/auth.log is missing`, and the CrowdSec log contains:
 ```
-no such file or directory: /var/log/auth.log
+No matching files for pattern /var/log/host/auth.log
 ```
 
-Debian 12+ and some container-based VPS log SSH only to journald and have no `/var/log/auth.log`.
+Debian 12+ and some container-based VPS log SSH only to journald and have no `/var/log/auth.log`. CrowdSec starts anyway, all other sources work, only SSH detection is missing.
 
-**Option A** — Install rsyslog, which writes the file:
+**Option A** — Install rsyslog, which writes the file, then restart CrowdSec so it picks the file up:
 ```bash
 apt install rsyslog
+docker compose restart crowdsec
 ```
 
 An empty file created with `touch` does not help: nothing writes SSH logins into it.
@@ -111,12 +110,12 @@ An empty file created with `touch` does not help: nothing writes SSH logins into
 ```yaml
 # Comment out or remove the SSH section:
 # filenames:
-#   - /var/log/auth.log
+#   - /var/log/host/auth.log
 # labels:
 #   type: syslog
 ```
 
-Also remove the `/var/log/auth.log` bind mount (the `type: bind` block) from `docker-compose.yml`.
+Then you can also remove the `/var/log:/var/log/host:ro` mount from `docker-compose.yml`. With it, the container can read all host logs in `/var/log` (read-only).
 
 ---
 

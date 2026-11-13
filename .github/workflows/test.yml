@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shellcheck
-        run: shellcheck crowdsec.sh tests/run.sh tests/enforcement.sh tests/upgrade.sh
+        run: shellcheck crowdsec.sh tests/run.sh tests/enforcement.sh tests/upgrade.sh tests/rotation.sh
       - name: compose config
         run: docker compose config -q
 
@@ -42,6 +42,13 @@ jobs:
           sudo apt-get install -y crowdsec-firewall-bouncer-${{ matrix.mode == 'second' && 'nftables' || matrix.mode }}
       - name: A ban becomes a firewall rule that covers forwarded traffic
         run: sudo ./tests/enforcement.sh ${{ matrix.mode }}
+
+  rotation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: SSH detection survives a rotation of auth.log
+        run: sudo ./tests/rotation.sh
 
   upgrade:
     runs-on: ubuntu-latest

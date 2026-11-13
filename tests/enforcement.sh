@@ -15,6 +15,7 @@ MODE=${1:-nftables}
 # The second instance enforces through its own nftables tables
 TABLE=crowdsec
 SERVICE=crowdsec-firewall-bouncer
+LISTENER=enforcement-listener NS=enforcement GW=198.51.100.1 PORT=18025
 if [[ $MODE == second ]]; then MODE=nftables; TABLE=crowdsec-mailcow; SERVICE=crowdsec-firewall-bouncer-mailcow; SECOND=1; fi
 
 for name in crowdsec-mailcow crowdsec-socket-proxy; do
@@ -30,8 +31,23 @@ if [[ ! -f /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml ]]; then
 fi
 
 # shellcheck disable=SC2317,SC2329  # invoked via trap
-cleanup() { "${COMPOSE[@]}" down -v >/dev/null 2>&1 || true; }
+cleanup() {
+  "${COMPOSE[@]}" down -v >/dev/null 2>&1 || true
+  docker rm -f "$LISTENER" >/dev/null 2>&1 || true
+  ip netns del "$NS" 2>/dev/null || true  # takes the veth pair with it
+}
 trap cleanup EXIT
+
+# A client with the banned source address, routed to a Docker-published port: the same
+# DNAT/forward path Mailcow's ports take. -v logs the peer address; without -e busybox nc exits after one client.
+docker run -d --name "$LISTENER" -p "$PORT:$PORT" alpine:3 nc -lkv -p "$PORT" -e true >/dev/null
+ip netns add "$NS"
+ip link add enf-host type veth peer name enf-client netns "$NS"
+ip addr add "$GW/24" dev enf-host
+ip link set enf-host up
+ip -n "$NS" addr add "$IP/24" dev enf-client
+ip -n "$NS" link set enf-client up
+connects() { ip netns exec "$NS" timeout 3 bash -c "exec 3<>/dev/tcp/$GW/$PORT" 2>/dev/null; }
 
 [[ -f /var/log/auth.log ]] || touch /var/log/auth.log
 "${COMPOSE[@]}" up -d --wait --wait-timeout 180
@@ -43,6 +59,13 @@ if [[ -n ${SECOND:-} ]]; then
   [[ $before == "$(sha256sum /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml)" ]] || { echo "FAIL: --second changed the first bouncer's config"; exit 1; }
 else
   ./crowdsec.sh setup-bouncer
+fi
+
+# Without a ban the connection must work, and arrive with the client's address (not via docker-proxy),
+# otherwise the checks below prove nothing
+if ! connects || ! sleep 1 || ! docker logs "$LISTENER" 2>&1 | grep -qF "$IP"; then
+  echo "FAIL: test setup: $IP cannot reach the published port through the forward path before the ban"
+  exit 1
 fi
 docker exec crowdsec-mailcow cscli decisions add --ip "$IP" --duration 10m --reason enforcement-test
 
@@ -77,12 +100,16 @@ else
     exit 1
   fi
 fi
+if connects; then echo "FAIL: $IP is banned but still reaches a Docker-published port"; exit 1; fi
 
 # Removing the decision must remove the rule again
 docker exec crowdsec-mailcow cscli decisions delete --ip "$IP" >/dev/null
 for _ in $(seq 1 30); do
   sleep 2
-  banned || { echo "PASS ($MODE): ban enforced on input and forward, lifted again"; exit 0; }
+  banned && continue
+  connects || { echo "FAIL: $IP still cannot reach the published port after the decision was deleted"; exit 1; }
+  echo "PASS ($MODE): banned traffic dropped on the forward path, let through again once lifted"
+  exit 0
 done
 echo "FAIL: $IP still known to the firewall after the decision was deleted"
 exit 1

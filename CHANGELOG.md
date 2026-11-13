@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- SSH detection stopped after the first logrotate of `auth.log`, because the single-file bind mount kept the old inode. `/var/log` is now mounted read-only as a directory (at `/var/log/host`), so the container sees all host logs. The container now also starts without `auth.log`; `./crowdsec.sh health` warns in that case. If you keep a locally changed `acquis.yaml`, change the SSH path to `/var/log/host/auth.log`; the old path no longer exists in the container.
+
+### Changed
+
+- `tests/enforcement.sh` sends real traffic in all modes: a connection from the banned IP to a Docker-published port must work before the ban, fail after it and work again after the unban.
+- New test `tests/rotation.sh`: SSH detection survives a logrotate of `auth.log`.
+- Docs: socket proxy scope corrected. It gives read-only access to the logs and metadata (including environment variables) of all containers on the host, not to the logs of the Mailcow containers only. No write access, no file access.
+- Docs: window without CrowdSec bans documented (after a reboot, or while the CrowdSec container or the bouncer is not running).
+
 ## 0.4.0-beta (2026-11-13)
 
 Hosts that already run CrowdSec get a second bouncer for this container's bans.

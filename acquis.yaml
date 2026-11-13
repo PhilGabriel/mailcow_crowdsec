@@ -34,8 +34,8 @@ labels:
   type: mailcow-f2b
 
 ---
-# SSH auth logs
+# SSH auth logs (host /var/log is mounted at /var/log/host)
 filenames:
-  - /var/log/auth.log
+  - /var/log/host/auth.log
 labels:
   type: syslog

@@ -13,7 +13,7 @@ sudo ./crowdsec.sh health
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | Bans block SSH, not SMTP/IMAP/webmail | `DOCKER-USER` missing in iptables mode | `sudo ./crowdsec.sh setup-bouncer`, see [[nftables vs iptables]] |
-| `bind source path does not exist: /var/log/auth.log` | No rsyslog | [Missing log files](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#missing-log-files) |
+| SSH attacks not detected, `No matching files for pattern /var/log/host/auth.log` | No rsyslog, so no `/var/log/auth.log` | [Missing log files](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#missing-log-files) |
 | No `docker:` sources in acquisition metrics | Socket proxy denies requests or crashes | [No log lines read at all](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#no-log-lines-read-at-all) |
 | Socket proxy restarts, `[:::2375]` in its log | Host has IPv6 disabled | `DISABLE_IPV6: 1` must stay in `docker-compose.yml` |
 | Sources read, but 0 lines for one service | Container names differ | [[Acquis Configuration]] |
