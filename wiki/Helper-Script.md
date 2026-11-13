@@ -2,7 +2,7 @@
 
 > ℹ️ **BETA** — Detection, ban enforcement (nftables and iptables) and the upgrade from the last release are covered by CI. Known gaps: see [Known limitations](https://github.com/PhilGabriel/mailcow_crowdsec#known-limitations). Test in a non-production environment first.
 >
-> Wiki state: **v0.3.0-beta** · CrowdSec v1.8.1 · [Changelog](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/CHANGELOG.md)
+> Wiki state: **v0.4.0-beta** · CrowdSec v1.8.2 · [Changelog](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/CHANGELOG.md)
 
 `crowdsec.sh` wraps common CrowdSec operations. It works from any directory and stops with an error if `crowdsec-mailcow` is not running.
 

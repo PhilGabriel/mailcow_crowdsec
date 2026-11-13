@@ -6,7 +6,7 @@
 
 ---
 
-**Version:** 0.3.0-beta · CrowdSec v1.8.1 · [Changelog](CHANGELOG.md)
+**Version:** 0.4.0-beta · CrowdSec v1.8.2 · [Changelog](CHANGELOG.md)
 
 > **CrowdSec protection for Mailcow**, running alongside Mailcow's built-in ban engine (netfilter-mailcow) — powered by [CrowdSec](https://crowdsec.net/), a collaborative, open-source security engine.
 
@@ -151,7 +151,7 @@ mailcow_crowdsec/
 | What | Version | How |
 |------|---------|-----|
 | Mailcow | 2026-10 (container images nginx 1.30, dovecot 2.3.21, postfix 3.10, netfilter 1.64) | In production since 2026-10; log parsers hit 99% of nginx and 73% of dovecot lines, netfilter bans 100% |
-| CrowdSec / socket proxy | v1.8.1 / 3.4.7 (pinned by digest) | CI on every pull request |
+| CrowdSec / socket proxy | v1.8.2 / 3.4.7 (pinned by digest) | CI on every pull request |
 | Ban reaches the firewall | crowdsec-firewall-bouncer-nftables, `input` and `forward` hook | CI (`tests/enforcement.sh nftables`) |
 | iptables bouncer (`DOCKER-USER`) | crowdsec-firewall-bouncer-iptables | CI (`tests/enforcement.sh iptables`) |
 | Second bouncer next to a host CrowdSec | crowdsec-firewall-bouncer-nftables, own tables `crowdsec-mailcow`; first bouncer config unchanged | CI (`tests/enforcement.sh second`), production host |
