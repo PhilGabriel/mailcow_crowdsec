@@ -12,7 +12,7 @@
 | **Docker** | 20.10+ |
 | **Docker Compose** | v2 (plugin, not standalone `docker-compose`) |
 | **Root access** | For the bouncer package, `setup-bouncer` and firewall checks |
-| **`/var/log/auth.log`** | Must exist, see below |
+| **`/var/log/auth.log`** | Needed for SSH protection, see below |
 
 ## Mailcow
 
@@ -30,13 +30,15 @@ CrowdSec does **not** join the Mailcow network. The network name does not matter
 
 ## auth.log for SSH protection
 
-Debian 12 and newer log SSH only to journald. CrowdSec reads `/var/log/auth.log`, and the bind mount fails on purpose if the file is missing:
+Debian 12 and newer log SSH only to journald. CrowdSec reads `/var/log/auth.log`. Without the file it still starts, but SSH logins are not monitored:
 
 ```bash
 ls -l /var/log/auth.log || apt install rsyslog
 ```
 
-An empty file created with `touch` does not help: nothing writes SSH logins into it. To skip SSH protection, see [Missing log files](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#missing-log-files).
+An empty file created with `touch` does not help: nothing writes SSH logins into it. If you install rsyslog after the first start, run `docker compose restart crowdsec`.
+
+The host's `/var/log` is mounted read-only at `/var/log/host` in the CrowdSec container, so the container can read all host logs in that directory. The directory is mounted instead of the single file because a file mount stops following the log after logrotate replaces it. To skip SSH protection, see [Missing log files](https://github.com/PhilGabriel/mailcow_crowdsec/blob/main/TROUBLESHOOTING.md#missing-log-files).
 
 ## CrowdSec already installed on the host
 

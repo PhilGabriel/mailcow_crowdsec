@@ -29,15 +29,16 @@ Do not run the integration test on a production Mailcow host. It uses the same c
 
 ## Checks
 
-CI runs the same three checks on every pull request:
+CI runs these checks on every pull request (plus `tests/enforcement.sh` and `tests/upgrade.sh`):
 
 ```bash
-shellcheck crowdsec.sh tests/run.sh
+shellcheck crowdsec.sh tests/*.sh
 docker compose config -q
 sudo ./tests/run.sh
+sudo ./tests/rotation.sh
 ```
 
-> **Never run `tests/run.sh` on a machine that runs Mailcow or CrowdSec.** The test creates dummy containers with the real Mailcow container names and removes them with `docker rm -f` on exit. Since 0.2.1 it aborts if those names already exist, but use CI or a throwaway VM.
+> **Never run `tests/run.sh` on a machine that runs Mailcow or CrowdSec.** The test creates dummy containers with the real Mailcow container names and removes them with `docker rm -f` on exit. Since 0.2.1 it aborts if those names already exist, but use CI or a throwaway VM. `tests/rotation.sh` also writes fake SSH failures to the host's `/var/log/auth.log` and rotates it.
 
 ## Adding a log source or parser
 

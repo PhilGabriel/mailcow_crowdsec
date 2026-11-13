@@ -11,7 +11,7 @@ For readers who know CrowdSec and Docker. Check [[Requirements]] first.
 git clone https://github.com/PhilGabriel/mailcow_crowdsec.git
 cd mailcow_crowdsec && cp .env.example .env
 
-# SSH log source needs this file
+# SSH detection needs this file (CrowdSec starts without it)
 ls -l /var/log/auth.log || apt install -y rsyslog
 
 # Start CrowdSec + socket proxy

@@ -38,7 +38,7 @@ Debian 12 and newer log SSH only to journald by default. CrowdSec reads SSH logi
 ls -l /var/log/auth.log || apt install rsyslog
 ```
 
-Without SSH protection: remove the auth.log source from `acquis.yaml` and the bind mount from `docker-compose.yml` (see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#missing-log-files)).
+The host's `/var/log` is mounted read-only at `/var/log/host` in the CrowdSec container (the directory, not the file, so that log rotation does not end SSH detection). The container can therefore read all host logs in `/var/log`. Without `auth.log` CrowdSec still starts, but SSH logins are not monitored (see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#missing-log-files)).
 
 **4. Reverse proxy in front of Mailcow?**
 

@@ -14,7 +14,11 @@
 | Dovecot (IMAP/POP3) | `dovecot-mailcow` | `syslog` | `crowdsecurity/dovecot` |
 | Postfix (SMTP) | `postfix-mailcow` | `syslog` | `crowdsecurity/postfix` |
 | netfilter-mailcow bans | `netfilter-mailcow` | `mailcow-f2b` | `Guezli/mailcow-f2b-bans`, `Guezli/mailcow-f2b-feed` |
-| SSH | `/var/log/auth.log` (file) | `syslog` | `crowdsecurity/sshd` |
+| SSH | `/var/log/host/auth.log` (file, host `/var/log/auth.log`) | `syslog` | `crowdsecurity/sshd` |
+
+### Host logs
+
+The host's `/var/log` is mounted read-only at `/var/log/host`, so host log files appear under that path in `acquis.yaml`. The directory is mounted instead of `auth.log` alone: a single-file mount keeps pointing at the old file after logrotate renames it, and SSH detection would stop silently.
 
 ### Why `syslog` for Postfix and Dovecot
 

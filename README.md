@@ -48,7 +48,7 @@ Mailcow Containers (Postfix, Dovecot, Nginx, netfilter)
   └─────────────────┘
 ```
 
-- **Socket proxy (Docker)** gives CrowdSec read access to container logs only. Direct Docker socket access would equal root on the host.
+- **Socket proxy (Docker)** gives CrowdSec read-only access to the logs and metadata (including environment variables) of all containers on the host. No write access, no file access. Direct Docker socket access would equal root on the host.
 - **CrowdSec (Docker)** reads container logs, detects attacks, serves ban decisions via LAPI
 - **Firewall Bouncer (host)** is a systemd service that queries the LAPI and manages iptables/nftables rules
 - **Community Blocklist** automatically pulls known-bad IPs from the CrowdSec network
@@ -153,9 +153,11 @@ mailcow_crowdsec/
 | Mailcow | 2026-10 (container images nginx 1.30, dovecot 2.3.21, postfix 3.10, netfilter 1.64) | In production since 2026-10; log parsers hit 99% of nginx and 73% of dovecot lines, netfilter bans 100% |
 | CrowdSec / socket proxy | v1.8.2 / 3.4.7 (pinned by digest) | CI on every pull request |
 | Ban reaches the firewall | crowdsec-firewall-bouncer-nftables, `input` and `forward` hook | CI (`tests/enforcement.sh nftables`) |
+| Ban blocks real traffic | Connection from the banned IP to a Docker-published port: works before the ban, fails after it, works again after the unban | CI (`tests/enforcement.sh`, all three modes) |
 | iptables bouncer (`DOCKER-USER`) | crowdsec-firewall-bouncer-iptables | CI (`tests/enforcement.sh iptables`) |
 | Second bouncer next to a host CrowdSec | crowdsec-firewall-bouncer-nftables, own tables `crowdsec-mailcow`; first bouncer config unchanged | CI (`tests/enforcement.sh second`), production host |
 | Upgrade | from v0.2.1-alpha on the same volumes | CI (`tests/upgrade.sh`) |
+| SSH detection after logrotate | `auth.log` rotated while CrowdSec runs | CI (`tests/rotation.sh`) |
 
 Mailcow changes its log format now and then. If detection stops after a Mailcow update, see [Troubleshooting](TROUBLESHOOTING.md).
 
@@ -166,6 +168,8 @@ Mailcow changes its log format now and then. If detection stops after a Mailcow 
 - The parser and scenario `Guezli/mailcow-f2b-*` come from the CrowdSec hub and are not pinned ([#14](https://github.com/PhilGabriel/mailcow_crowdsec/issues/14)).
 - Few setups are verified so far ([#13](https://github.com/PhilGabriel/mailcow_crowdsec/issues/13)). Mailcow changes its log format now and then.
 - The CrowdSec container runs with the default Linux capabilities. Dropping them works in the tests but breaks files owned by another uid.
+- Through the socket proxy, CrowdSec can read the logs and metadata (`inspect`) of every container on the host, not only the four in `acquis.yaml`. The metadata contains each container's environment variables in clear text; on a Mailcow host these may include database and Redis passwords. Writing is blocked: `exec`, `archive`, `export` and every POST return 403.
+- No CrowdSec bans are in place after a reboot, or while the CrowdSec container or the bouncer is not running. The bouncer gets its bans only from the LAPI in the container and, as far as we know (not tested), removes its rules when it stops. systemd restarts it until the LAPI answers. netfilter-mailcow keeps banning independently.
 
 ## Requirements
 

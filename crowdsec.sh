@@ -153,6 +153,15 @@ cmd_health() {
   docker exec "$CONTAINER" cscli capi status 2>/dev/null || echo "✗ CAPI not connected"
 
   echo ""
+  echo "=== SSH Log ==="
+  if [[ -f /var/log/auth.log ]]; then
+    echo "✓ /var/log/auth.log exists"
+  else
+    echo "✗ /var/log/auth.log is missing: no SSH detection"
+    echo "  Install: apt install rsyslog && docker compose restart crowdsec"
+  fi
+
+  echo ""
   echo "=== Bouncer Connection ==="
   docker exec "$CONTAINER" cscli bouncers list 2>/dev/null
 

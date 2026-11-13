@@ -6,7 +6,7 @@
 
 ## Components
 
-1. **Socket proxy** (`crowdsec-socket-proxy`, Docker): read-only filter in front of the Docker socket. It allows GET requests for container lists, logs, events and info only.
+1. **Socket proxy** (`crowdsec-socket-proxy`, Docker): read-only filter in front of the Docker socket. It allows GET requests only: logs and metadata (`inspect`, including environment variables) of all containers on the host, events and info. No write access, no file access.
 2. **CrowdSec** (`crowdsec-mailcow`, Docker): reads container logs through the proxy, detects attacks and serves ban decisions through its Local API (LAPI).
 3. **Firewall bouncer** (host, systemd): polls the LAPI and manages iptables or nftables rules.
 4. **netfilter-mailcow** (Mailcow): keeps running. CrowdSec imports its bans.
@@ -32,6 +32,8 @@ Mailcow Containers (Postfix, Dovecot, Nginx, netfilter)
 
 Access to `/var/run/docker.sock` equals root on the host. The `:ro` mount flag does not restrict the Docker API. The proxy runs with `POST: 0`, a read-only root filesystem and `no-new-privileges`. It sits on an internal network (`socket-proxy`) without outside access. Only CrowdSec talks to it.
 
+The proxy is not limited to the four containers in `acquis.yaml`. CrowdSec can read the logs of every container on the host, and `GET /containers/<name>/json` returns each container's environment variables in clear text; on a Mailcow host these may include database and Redis passwords. `exec`, `archive`, `export` and every POST return 403.
+
 ## Networks
 
 | Network | Members | Purpose |
@@ -52,6 +54,8 @@ CrowdSec is **not** on the Mailcow network. It needs no access to Redis, MySQL o
 ## Why is the bouncer on the host?
 
 The bouncer changes iptables or nftables rules. Running it as a host service is the [official CrowdSec recommendation](https://docs.crowdsec.net/u/bouncers/firewall/). It needs no privileged container, and systemd restarts it.
+
+The bouncer gets its bans only from the LAPI in the container and, as far as we know (not tested), removes its rules when it stops. After a reboot, or while the CrowdSec container or the bouncer is not running, no CrowdSec bans are in place. systemd restarts the bouncer until the LAPI answers. netfilter-mailcow keeps banning independently.
 
 ## Why DOCKER-USER?
 
@@ -84,3 +88,5 @@ CrowdSec connects to the Central API (CAPI) by default and receives a list of kn
 ## Testing
 
 `tests/run.sh` starts the stack with dummy containers that use the Mailcow names and print sample logs. The test passes when CrowdSec raises an alert for each attacker IP. GitHub Actions runs it with shellcheck and `docker compose config` on every pull request.
+
+`tests/enforcement.sh` (modes `nftables`, `iptables`, `second`) sends real traffic: a connection from the banned IP to a Docker-published port must work before the ban, fail after it and work again after the unban. `tests/rotation.sh` checks that SSH detection survives a logrotate of `auth.log`.
